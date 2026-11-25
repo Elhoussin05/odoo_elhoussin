@@ -23346,6 +23346,72 @@ WebsiteVisitor.register();return __exports;});;
 /* /website/static/src/js/send_mail_form.js */
 odoo.define('@website/js/send_mail_form',['@web/core/l10n/translation','@web/core/registry'],function(require){'use strict';let __exports={};const{appTranslateFn}=require("@web/core/l10n/translation");const _t=(str,...args)=>appTranslateFn(str,"website",...args);const{registry}=require("@web/core/registry");registry.category("website.form_editor_actions").add("send_mail",{formFields:[{type:"char",custom:true,required:true,fillWith:"name",name:"name",string:_t("Your Name"),},{type:"tel",custom:true,fillWith:"phone",name:"phone",string:_t("Phone Number"),},{type:"email",modelRequired:true,fillWith:"email",name:"email_from",string:_t("Your Email"),},{type:"char",custom:true,fillWith:"commercial_company_name",name:"company",string:_t("Your Company"),},{type:"char",modelRequired:true,name:"subject",string:_t("Subject"),},{type:"text",custom:true,required:true,name:"description",string:_t("Your Question"),},],fields:[{name:"email_to",type:"char",required:true,string:_t("Recipient Email"),defaultValue:"info@yourcompany.example.com",},],});return __exports;});;
 
+/* /purchase/static/src/components/monetary_field_no_zero/monetary_field_no_zero.js */
+odoo.define('@purchase/components/monetary_field_no_zero/monetary_field_no_zero',['@web/views/fields/monetary/monetary_field','@web/core/registry','@web/core/utils/numbers'],function(require){'use strict';let __exports={};const{monetaryField,MonetaryField}=require("@web/views/fields/monetary/monetary_field");const{registry}=require("@web/core/registry");const{floatIsZero}=require("@web/core/utils/numbers");const MonetaryFieldNoZero=__exports.MonetaryFieldNoZero=class MonetaryFieldNoZero extends MonetaryField{static props={...MonetaryField.props,};get value(){const originalValue=super.value;const decimals=this.currencyDigits?this.currencyDigits[1]:2;return floatIsZero(originalValue,decimals)?false:originalValue;}}
+const monetaryFieldNoZero=__exports.monetaryFieldNoZero={...monetaryField,component:MonetaryFieldNoZero,};registry.category("fields").add("monetary_no_zero",monetaryFieldNoZero);return __exports;});;
+
+/* /purchase/static/src/components/open_match_line_widget/open_match_line_widget.js */
+odoo.define('@purchase/components/open_match_line_widget/open_match_line_widget',['@web/core/registry','@web/core/utils/hooks','@web/views/fields/standard_field_props','@odoo/owl'],function(require){'use strict';let __exports={};const{registry}=require("@web/core/registry");const{useService}=require("@web/core/utils/hooks");const{standardFieldProps}=require("@web/views/fields/standard_field_props");const{Component}=require("@odoo/owl");class OpenMatchLineWidget extends Component{static template="purchase.OpenMatchLineWidget";static props={...standardFieldProps};setup(){super.setup();this.action=useService("action");}
+async openMatchLine(){this.action.doActionButton({type:"object",resId:this.props.record.resId,name:"action_open_line",resModel:"purchase.bill.line.match",});}}
+registry.category("fields").add("open_match_line_widget",{component:OpenMatchLineWidget,});return __exports;});;
+
+/* /purchase/static/src/components/purchase_file_uploader/purchase_file_uploader.js */
+odoo.define('@purchase/components/purchase_file_uploader/purchase_file_uploader',['@web/core/utils/hooks','@web/core/registry','@web/views/widgets/standard_widget_props','@web/views/fields/file_handler','@web/core/errors/error_dialogs','@web/core/l10n/translation','@odoo/owl'],function(require){'use strict';let __exports={};const{useService}=require("@web/core/utils/hooks");const{registry}=require("@web/core/registry");const{standardWidgetProps}=require("@web/views/widgets/standard_widget_props");const{FileUploader}=require("@web/views/fields/file_handler");const{WarningDialog}=require("@web/core/errors/error_dialogs");const{appTranslateFn}=require("@web/core/l10n/translation");const _t=(str,...args)=>appTranslateFn(str,"purchase",...args);const{Component}=require("@odoo/owl");const PurchaseFileUploader=__exports.PurchaseFileUploader=class PurchaseFileUploader extends Component{static template="purchase.DocumentFileUploader";static props={...standardWidgetProps,record:{type:Object,optional:true},list:{type:Object,optional:true},};static components={FileUploader};setup(){this.orm=useService("orm");this.action=useService("action");this.dialog=useService("dialog");this.attachmentIdsToProcess=[];}
+get resModel(){return"purchase.order";}
+get records(){return this.props.record?[this.props.record]:this.props.list.records;}
+async getIds(){if(this.props.record){return this.props.record.data.id;}
+return this.props.list.getResIds(true);}
+onClick(ev){if(this.env.config.viewType!=="list"){return;}
+const vendorSet=new Set(this.props.list.selection.map((record)=>record.data.partner_id.id));if(vendorSet.size>1){this.dialog.add(WarningDialog,{title:_t("Validation Error"),message:_t("You can only upload a bill for a single vendor at a time."),});return false;}}
+async onFileUploaded(file){const att_data={name:file.name,mimetype:file.type,datas:file.data,};const[att_id]=await this.orm.create("ir.attachment",[att_data],{context:{...this.env.searchModel.context},});this.attachmentIdsToProcess.push(att_id);}
+async onUploadComplete(){const resModel=this.resModel;const ids=await this.getIds();let action;try{action=await this.orm.call(resModel,"action_create_invoice",[ids,this.attachmentIdsToProcess],{context:{...this.env.searchModel.context}});}finally{this.attachmentIdsToProcess=[];}
+this.action.doAction(action);}}
+const purchaseFileUploader=__exports.purchaseFileUploader={component:PurchaseFileUploader,};registry.category("view_widgets").add("purchase_file_uploader",purchaseFileUploader);return __exports;});;
+
+/* /purchase/static/src/product_catalog/kanban_record.js */
+odoo.define('@purchase/product_catalog/kanban_record',['@product/product_catalog/kanban_record','@purchase/product_catalog/purchase_order_line/purchase_order_line','@web/core/utils/patch','@web/core/utils/hooks'],function(require){'use strict';let __exports={};const{ProductCatalogKanbanRecord}=require("@product/product_catalog/kanban_record");const{ProductCatalogPurchaseOrderLine}=require("@purchase/product_catalog/purchase_order_line/purchase_order_line");const{patch}=require("@web/core/utils/patch");const{useService}=require("@web/core/utils/hooks");patch(ProductCatalogKanbanRecord.prototype,{setup(){super.setup();this.orm=useService("orm");},get orderLineComponent(){if(this.env.orderResModel==="purchase.order"){return ProductCatalogPurchaseOrderLine;}
+return super.orderLineComponent;},});return __exports;});;
+
+/* /purchase/static/src/product_catalog/kanban_renderer.js */
+odoo.define('@purchase/product_catalog/kanban_renderer',['@web/core/utils/hooks','@product/product_catalog/kanban_renderer'],function(require){'use strict';let __exports={};const{useService}=require("@web/core/utils/hooks");const{ProductCatalogKanbanRenderer}=require("@product/product_catalog/kanban_renderer");const PurchaseProductCatalogKanbanRenderer=__exports.PurchaseProductCatalogKanbanRenderer=class PurchaseProductCatalogKanbanRenderer extends ProductCatalogKanbanRenderer{static template="PurchaseProductCatalogKanbanRenderer";setup(){super.setup();this.action=useService("action");}
+get createProductContext(){return{default_seller_ids:[{partner_id:this.props.list._config.context.partner_id}],};}
+async createProduct(){await this.action.doAction({type:"ir.actions.act_window",res_model:"product.product",target:"new",views:[[false,"form"]],view_mode:"form",context:this.createProductContext,},{props:{onSave:async(record,params)=>{await this.props.list.model.load();this.props.list.model.useSampleModel=false;this.action.doAction({type:"ir.actions.act_window_close",});},}});}}
+return __exports;});;
+
+/* /purchase/static/src/product_catalog/kanban_view.js */
+odoo.define('@purchase/product_catalog/kanban_view',['@web/core/registry','@product/product_catalog/kanban_view','@purchase/product_catalog/kanban_renderer'],function(require){'use strict';let __exports={};const{registry}=require("@web/core/registry");const{productCatalogKanbanView}=require("@product/product_catalog/kanban_view");const{PurchaseProductCatalogKanbanRenderer}=require("@purchase/product_catalog/kanban_renderer");const purchaseProductCatalogKanbanView=__exports.purchaseProductCatalogKanbanView={...productCatalogKanbanView,Renderer:PurchaseProductCatalogKanbanRenderer,};registry.category("views").add("purchase_product_kanban_catalog",purchaseProductCatalogKanbanView);return __exports;});;
+
+/* /purchase/static/src/product_catalog/purchase_order_line/purchase_order_line.js */
+odoo.define('@purchase/product_catalog/purchase_order_line/purchase_order_line',['@product/product_catalog/order_line/order_line'],function(require){'use strict';let __exports={};const{ProductCatalogOrderLine}=require("@product/product_catalog/order_line/order_line");const ProductCatalogPurchaseOrderLine=__exports.ProductCatalogPurchaseOrderLine=class ProductCatalogPurchaseOrderLine extends ProductCatalogOrderLine{static props={...ProductCatalogPurchaseOrderLine.props,min_qty:{type:Number,optional:true},packaging:{type:Object,optional:true},};get highlightUoM(){return true;}}
+return __exports;});;
+
+/* /purchase/static/src/toaster_button/toaster_button_widget.js */
+odoo.define('@purchase/toaster_button/toaster_button_widget',['@web/core/registry','@web/core/utils/hooks','@odoo/owl','@web/views/widgets/standard_widget_props'],function(require){'use strict';let __exports={};const{registry}=require("@web/core/registry");const{useService}=require("@web/core/utils/hooks");const{Component}=require("@odoo/owl");const{standardWidgetProps}=require("@web/views/widgets/standard_widget_props");class ButtonWithNotification extends Component{static template="purchase.ButtonWithNotification";static props={...standardWidgetProps,method:String,title:String,};setup(){this.orm=useService("orm");this.notification=useService("notification");}
+async onClick(){const result=await this.orm.call(this.props.record.resModel,this.props.method,[this.props.record.resId,]);const message=result.toast_message;this.notification.add(message,{type:"success"});}}
+const buttonWithNotification=__exports.buttonWithNotification={component:ButtonWithNotification,extractProps:({attrs})=>{return{method:attrs.button_name,title:attrs.title,};},};registry.category("view_widgets").add("toaster_button",buttonWithNotification);return __exports;});;
+
+/* /purchase/static/src/views/purchase_dashboard.js */
+odoo.define('@purchase/views/purchase_dashboard',['@web/core/utils/hooks','@odoo/owl'],function(require){'use strict';let __exports={};const{useService}=require("@web/core/utils/hooks");const{Component,onWillStart,onWillUpdateProps}=require("@odoo/owl");const PurchaseDashBoard=__exports.PurchaseDashBoard=class PurchaseDashBoard extends Component{static template="purchase.PurchaseDashboard";static props={list:{type:Object,optional:true}};setup(){this.orm=useService("orm");this.action=useService("action");onWillStart(async()=>{await this.updateDashboardState();});onWillUpdateProps(async()=>{await this.updateDashboardState();});}
+async updateDashboardState(){this.purchaseData=await this.orm.call("purchase.order","retrieve_dashboard");this.multiuser=JSON.stringify(this.purchaseData.global)!==JSON.stringify(this.purchaseData.my);}
+setSearchContext(ev){const filter_name=ev.currentTarget.getAttribute("filter_name");const filters=filter_name.split(",");const searchItems=this.env.searchModel.getSearchItems((item)=>filters.includes(item.name));this.env.searchModel.query=[];for(const item of searchItems){this.env.searchModel.toggleSearchItem(item.id);}}}
+return __exports;});;
+
+/* /purchase/static/src/views/purchase_kanbanview.js */
+odoo.define('@purchase/views/purchase_kanbanview',['@web/core/registry','@account/views/file_upload_kanban/file_upload_kanban_view','@account/views/file_upload_kanban/file_upload_kanban_renderer','@purchase/views/purchase_dashboard'],function(require){'use strict';let __exports={};const{registry}=require("@web/core/registry");const{fileUploadKanbanView}=require("@account/views/file_upload_kanban/file_upload_kanban_view");const{FileUploadKanbanRenderer}=require("@account/views/file_upload_kanban/file_upload_kanban_renderer");const{PurchaseDashBoard}=require("@purchase/views/purchase_dashboard");const PurchaseDashBoardKanbanRenderer=__exports.PurchaseDashBoardKanbanRenderer=class PurchaseDashBoardKanbanRenderer extends FileUploadKanbanRenderer{static template="purchase.PurchaseKanbanView";static components=Object.assign({},FileUploadKanbanRenderer.components,{PurchaseDashBoard});}
+const PurchaseDashBoardKanbanView=__exports.PurchaseDashBoardKanbanView={...fileUploadKanbanView,Renderer:PurchaseDashBoardKanbanRenderer,};registry.category("views").add("purchase_dashboard_kanban",PurchaseDashBoardKanbanView);return __exports;});;
+
+/* /purchase/static/src/views/purchase_listview.js */
+odoo.define('@purchase/views/purchase_listview',['@web/core/registry','@purchase/views/purchase_dashboard','@purchase/components/purchase_file_uploader/purchase_file_uploader','@account/views/file_upload_list/file_upload_list_controller','@account/views/file_upload_list/file_upload_list_renderer','@account/views/file_upload_list/file_upload_list_view'],function(require){'use strict';let __exports={};const{registry}=require("@web/core/registry");const{PurchaseDashBoard}=require("@purchase/views/purchase_dashboard");const{PurchaseFileUploader}=require("@purchase/components/purchase_file_uploader/purchase_file_uploader");const{FileUploadListController}=require("@account/views/file_upload_list/file_upload_list_controller");const{FileUploadListRenderer}=require("@account/views/file_upload_list/file_upload_list_renderer");const{fileUploadListView}=require("@account/views/file_upload_list/file_upload_list_view");const PurchaseDashBoardRenderer=__exports.PurchaseDashBoardRenderer=class PurchaseDashBoardRenderer extends FileUploadListRenderer{static template="purchase.ListRenderer";static components=Object.assign({},FileUploadListRenderer.components,{PurchaseDashBoard});}
+const PurchaseFileUploadListController=__exports.PurchaseFileUploadListController=class PurchaseFileUploadListController extends FileUploadListController{static template=`purchase.ListView`;static components={...FileUploadListController.components,PurchaseFileUploader,};}
+const PurchaseDashBoardListView=__exports.PurchaseDashBoardListView={...fileUploadListView,Controller:PurchaseFileUploadListController,Renderer:PurchaseDashBoardRenderer,};registry.category("views").add("purchase_dashboard_list",PurchaseDashBoardListView);return __exports;});;
+
+/* /purchase/static/src/js/tours/purchase.js */
+odoo.define('@purchase/js/tours/purchase',['@web/core/l10n/translation','@web/core/registry','@web_tour/tour_utils','@purchase/js/tours/purchase_steps'],function(require){'use strict';let __exports={};const{appTranslateFn}=require("@web/core/l10n/translation");const _t=(str,...args)=>appTranslateFn(str,"purchase",...args);const{registry}=require("@web/core/registry");const{stepUtils}=require("@web_tour/tour_utils");const PurchaseAdditionalTourSteps=require("@purchase/js/tours/purchase_steps")[Symbol.for("default")];registry.category("web_tour.tours").add("purchase_tour",{url:"/odoo",steps:()=>[stepUtils.showAppsMenuItem(),{isActive:["community"],trigger:'.o_app[data-menu-xmlid="purchase.menu_purchase_root"]',content:_t("Let's try the Purchase app to manage the flow from purchase to reception and invoice control."),tooltipPosition:"right",run:"click",},{isActive:["enterprise"],trigger:'.o_app[data-menu-xmlid="purchase.menu_purchase_root"]',content:_t("Let's try the Purchase app to manage the flow from purchase to reception and invoice control."),tooltipPosition:"bottom",run:"click",},{trigger:".o_purchase_order",},{trigger:".o_list_button_add",content:_t("Let's create your first request for quotation."),tooltipPosition:"bottom",run:"click",},{trigger:".o_purchase_order",},{trigger:".o_field_res_partner_many2one[name='partner_id'] input",content:_t("Search a vendor name, or create one on the fly."),tooltipPosition:"bottom",async run(actions){const input=this.anchor.querySelector("input");await actions.edit("Azure Interior",input||this.anchor);},},{isActive:["auto"],trigger:".ui-menu-item > a:contains('Azure Interior')",run:"click",},{trigger:".o_field_res_partner_many2one[name='partner_id'] .o_external_button",},{trigger:".o_field_x2many_list_row_add > a",content:_t("Add some products or services to your quotation."),tooltipPosition:"bottom",run:"click",},{trigger:".o_purchase_order",},{trigger:".o_field_widget[name=product_id], .o_field_widget[name=product_template_id]",content:_t("Select a product, or create a new one on the fly."),tooltipPosition:"right",async run(actions){const input=this.anchor.querySelector("input");await actions.edit("DESK0001",input||this.anchor);},},{isActive:["auto"],trigger:"a:contains('DESK0001')",run:"click",},{trigger:".o_field_text[name='name'] textarea:value(DESK0001)",},{trigger:".o_purchase_order",},{trigger:"div.o_field_widget[name='product_qty'] input ",content:_t("Indicate the product quantity you want to order."),tooltipPosition:"right",run:"edit 12.0",},{isActive:["auto","mobile"],trigger:".o_statusbar_buttons .o_arrow_button_current[name='action_rfq_send']",},...stepUtils.statusbarButtonsSteps("Send by Email",_t("Send the request for quotation to your vendor.")),{trigger:".modal-footer button[name='action_send_mail']",},{trigger:".modal-footer button[name='action_send_mail']",content:_t("Send the request for quotation to your vendor."),tooltipPosition:"left",run:"click",},{trigger:".o_purchase_order",},{content:"Select price",trigger:'tbody tr.o_data_row .o_list_number[name="price_unit"]',},{trigger:"tbody tr.o_data_row .o_list_number[name='price_unit']",content:_t("Once you get the price from the vendor, you can complete the purchase order with the right price."),tooltipPosition:"right",run:"edit 200.00",},{isActive:["auto"],trigger:".o_purchase_order",run:"click",},...stepUtils.statusbarButtonsSteps("Confirm Order",_t("Confirm your purchase.")),...new PurchaseAdditionalTourSteps()._get_purchase_stock_steps(),],});return __exports;});;
+
+/* /purchase/static/src/js/tours/purchase_steps.js */
+odoo.define('@purchase/js/tours/purchase_steps',[],function(require){'use strict';let __exports={};class PurchaseAdditionalTourSteps{_get_purchase_stock_steps(){return[{isActive:["auto"],trigger:".o_purchase_order",run:"click",},];}}
+__exports[Symbol.for("default")]=PurchaseAdditionalTourSteps;return __exports;});;
+
 /* /mrp/static/src/components/bom_overview/mrp_bom_overview.js */
 odoo.define('@mrp/components/bom_overview/mrp_bom_overview',['@web/core/registry','@web/core/utils/hooks','@mrp/components/bom_overview_control_panel/mrp_bom_overview_control_panel','@mrp/components/bom_overview_table/mrp_bom_overview_table','@odoo/owl','@web/webclient/actions/action_service'],function(require){'use strict';let __exports={};const{registry}=require("@web/core/registry");const{useService,useBus}=require("@web/core/utils/hooks");const{BomOverviewControlPanel}=require("@mrp/components/bom_overview_control_panel/mrp_bom_overview_control_panel");const{BomOverviewTable}=require("@mrp/components/bom_overview_table/mrp_bom_overview_table");const{Component,EventBus,onWillStart,useSubEnv,useState}=require("@odoo/owl");const{standardActionServiceProps}=require("@web/webclient/actions/action_service");const BomOverviewComponent=__exports.BomOverviewComponent=class BomOverviewComponent extends Component{static template="mrp.BomOverviewComponent";static components={BomOverviewControlPanel,BomOverviewTable,};static props={...standardActionServiceProps};setup(){this.orm=useService("orm");this.context=this.props.action.context;this.actionService=useService("action");this.variants=[];this.warehouses=[];this.showVariants=false;this.uomName="";this.unfoldedIds=new Set();this.state=useState({showOptions:{mode:this.props.action.context.mode||'overview',uom:false,attachments:false,},currentWarehouse:null,currentVariantId:null,bomData:{},precision:2,bomQuantity:null,foldable:true,allFolded:true,});useSubEnv({overviewBus:new EventBus(),});useBus(this.env.overviewBus,"toggle-fold-all",()=>(this.state.allFolded=!this.state.allFolded));onWillStart(async()=>{await this.getWarehouses();await this.initBomData();});}
 async initBomData(){const variantId=this.props.action.context.active_product_id;const resModel=this.props.action.context.active_model;this.state.currentVariantId=false;if(resModel==='product.product'&&variantId!==undefined){this.state.currentVariantId=variantId;}
@@ -23665,6 +23731,82 @@ return super.getFailureNotificationName(...arguments);},});return __exports;});;
 /* /sms/static/src/thread/message_patch.js */
 odoo.define('@sms/thread/message_patch',['@web/core/l10n/translation','@web/core/user','@mail/core/common/message','@web/core/utils/patch'],function(require){'use strict';let __exports={};const{appTranslateFn}=require("@web/core/l10n/translation");const _t=(str,...args)=>appTranslateFn(str,"sms",...args);const{user}=require("@web/core/user");const{Message}=require("@mail/core/common/message");const{patch}=require("@web/core/utils/patch");patch(Message.prototype,{async onClickNotification(ev){const hasAccountFailure=this.message.notification_ids.some((notification)=>notification.isFailure&&notification.failure_type==="sms_acc");if(this.message.message_type==="sms"&&hasAccountFailure&&(await user.hasGroup("base.group_system"))){const[accountId]=await this.env.services.orm.call("iap.account","get",[],{service_name:"sms",force_create:false,});if(accountId){this.env.services.action.doAction({type:"ir.actions.act_window",name:_t("SMS Account"),target:"current",res_model:"iap.account",res_id:accountId,views:[[false,"form"]],});return;}}
 super.onClickNotification(ev);},});return __exports;});;
+
+/* /purchase_stock/static/src/js/tours/purchase_stock.js */
+odoo.define('@purchase_stock/js/tours/purchase_stock',['@web/core/l10n/translation','@purchase/js/tours/purchase_steps','@web/core/utils/patch'],function(require){'use strict';let __exports={};const{appTranslateFn}=require("@web/core/l10n/translation");const _t=(str,...args)=>appTranslateFn(str,"purchase_stock",...args);const PurchaseAdditionalTourSteps=require("@purchase/js/tours/purchase_steps")[Symbol.for("default")];const{patch}=require("@web/core/utils/patch");patch(PurchaseAdditionalTourSteps.prototype,{_get_purchase_stock_steps:function(){return[{trigger:".o-form-buttonbox button[name='action_view_picking']",},{trigger:".o-form-buttonbox button[name='action_view_picking']",content:_t("Receive the ordered products."),tooltipPosition:"bottom",run:'click',},{trigger:".o_statusbar_buttons button[name='button_validate']",content:_t("Validate the receipt of all ordered products."),tooltipPosition:"bottom",run:'click',},{trigger:".modal-dialog",},{trigger:".modal-footer .btn-primary",content:_t("Process all the receipt quantities."),tooltipPosition:"bottom",run:"click",},{trigger:".o_back_button a, .breadcrumb-item:not('.active'):last",content:_t('Go back to the purchase order to generate the vendor bill.'),tooltipPosition:'bottom',run:"click",},{trigger:".o_statusbar_buttons button[name='action_create_invoice']",content:_t("Generate the draft vendor bill."),tooltipPosition:"bottom",run:'click',}];}});__exports[Symbol.for("default")]=PurchaseAdditionalTourSteps;return __exports;});;
+
+/* /purchase_stock/static/src/product_catalog/kanban_controller.js */
+odoo.define('@purchase_stock/product_catalog/kanban_controller',['@product/product_catalog/kanban_controller','@odoo/owl','@web/core/utils/timing'],function(require){'use strict';let __exports={};const{ProductCatalogKanbanController}=require("@product/product_catalog/kanban_controller");const{useSubEnv,useEnv}=require("@odoo/owl");const{useDebounced}=require("@web/core/utils/timing");const PurchaseSuggestCatalogKanbanController=__exports.PurchaseSuggestCatalogKanbanController=class PurchaseSuggestCatalogKanbanController extends ProductCatalogKanbanController{setup(){super.setup();this.suggest=useEnv().suggest;this._computeTotalEstimatedPrice=useEnv()._computeTotalEstimatedPrice;Object.assign(this.suggest,{currencyId:this.props.context.product_catalog_currency_id,digits:this.props.context.product_catalog_digits,poState:this.props.context.product_catalog_order_state,vendorName:this.props.context.vendor_name,warehouse_id:this.props.context.warehouse_id,});useSubEnv({addAllProducts:()=>this.onAddAll(),toggleSuggest:()=>this.toggleSuggest(),reloadKanban:()=>this._kanbanReload(),debouncedReloadKanban:useDebounced(async()=>{this._kanbanReload();},500),});}
+async _kanbanReload(){this.env.searchModel.searchPanelInfo.shouldReload=true;await this.env.searchModel._notify();await this._computeTotalEstimatedPrice();}
+async onAddAll(){const{searchModel}=this.env;const{sectionId}=searchModel.selectedSection;const lineCountChange=await this.model.orm.call("purchase.order","action_purchase_order_suggest",[this.props.context.product_catalog_order_id],{context:searchModel.globalContext});searchModel.toggleFilters(["suggested","products_in_purchase_order"],true);searchModel.trigger("section-line-count-change",{sectionId,lineCountChange,});}
+toggleSuggest(){this.suggest.suggestToggle.isOn=!this.suggest.suggestToggle.isOn;localStorage.setItem("purchase_stock.suggest_toggle_state",JSON.stringify({isOn:this.suggest.suggestToggle.isOn}));this.env.searchModel.toggleFilters(["suggested","products_in_purchase_order"],this.suggest.suggestToggle.isOn);}}
+return __exports;});;
+
+/* /purchase_stock/static/src/product_catalog/kanban_model.js */
+odoo.define('@purchase_stock/product_catalog/kanban_model',['@product/product_catalog/kanban_model','@purchase_stock/product_catalog/utils'],function(require){'use strict';let __exports={};const{ProductCatalogKanbanModel}=require("@product/product_catalog/kanban_model");const{getSuggestToggleState}=require("@purchase_stock/product_catalog/utils");const PurchaseSuggestCatalogKanbanModel=__exports.PurchaseSuggestCatalogKanbanModel=class PurchaseSuggestCatalogKanbanModel extends ProductCatalogKanbanModel{async _loadData(params){const sortBySuggested=(list)=>{const suggestProducts=list.filter((record)=>record.suggested_qty>0);const notSuggestedProducts=list.filter((record)=>record.suggested_qty==0);return[...suggestProducts,...notSuggestedProducts];};const suggest=getSuggestToggleState(this.config.context.product_catalog_order_state);const result=await super._loadData(params);if(!suggest.isOn||!result.records.some((r)=>r.suggested_qty>0)){return result;}
+if(!params.isMonoRecord){if(params.groupBy?.length){for(const group of result.groups){group.list.records=sortBySuggested(group.list.records);}}else{result.records=sortBySuggested(result.records);}}
+return result;}
+_getOrderLinesInfoParams(loadParams,productIds){const base=super._getOrderLinesInfoParams(loadParams,productIds);return{...base,...loadParams.context};}}
+return __exports;});;
+
+/* /purchase_stock/static/src/product_catalog/kanban_renderer.js */
+odoo.define('@purchase_stock/product_catalog/kanban_renderer',['@web/core/utils/patch','@purchase/product_catalog/kanban_renderer','@purchase_stock/product_catalog/record/kanban_record'],function(require){'use strict';let __exports={};const{patch}=require("@web/core/utils/patch");const{PurchaseProductCatalogKanbanRenderer}=require("@purchase/product_catalog/kanban_renderer");const{ProductCatalogPurchaseSuggestKanbanRecord}=require("@purchase_stock/product_catalog/record/kanban_record");patch(PurchaseProductCatalogKanbanRenderer,{components:{...PurchaseProductCatalogKanbanRenderer.components,KanbanRecord:ProductCatalogPurchaseSuggestKanbanRecord,},});return __exports;});;
+
+/* /purchase_stock/static/src/product_catalog/kanban_view.js */
+odoo.define('@purchase_stock/product_catalog/kanban_view',['@web/core/utils/patch','@purchase/product_catalog/kanban_view','@purchase_stock/product_catalog/search/search_panel','@purchase_stock/product_catalog/search/search_model','@purchase_stock/product_catalog/kanban_controller','@purchase_stock/product_catalog/kanban_model'],function(require){'use strict';let __exports={};const{patch}=require("@web/core/utils/patch");const{purchaseProductCatalogKanbanView}=require("@purchase/product_catalog/kanban_view");const{PurchaseSuggestCatalogSearchPanel}=require("@purchase_stock/product_catalog/search/search_panel");const{PurchaseStockProductCatalogSearchModel}=require("@purchase_stock/product_catalog/search/search_model");const{PurchaseSuggestCatalogKanbanController}=require("@purchase_stock/product_catalog/kanban_controller");const{PurchaseSuggestCatalogKanbanModel}=require("@purchase_stock/product_catalog/kanban_model");patch(purchaseProductCatalogKanbanView,{Controller:PurchaseSuggestCatalogKanbanController,SearchPanel:PurchaseSuggestCatalogSearchPanel,Model:PurchaseSuggestCatalogKanbanModel,SearchModel:PurchaseStockProductCatalogSearchModel,});return __exports;});;
+
+/* /purchase_stock/static/src/product_catalog/record/kanban_record.js */
+odoo.define('@purchase_stock/product_catalog/record/kanban_record',['@product/product_catalog/kanban_record','@purchase_stock/product_catalog/record/purchase_order_line'],function(require){'use strict';let __exports={};const{ProductCatalogKanbanRecord}=require("@product/product_catalog/kanban_record");const{ProductCatalogPurchaseSuggestOrderLine}=require("@purchase_stock/product_catalog/record/purchase_order_line");const ProductCatalogPurchaseSuggestKanbanRecord=__exports.ProductCatalogPurchaseSuggestKanbanRecord=class ProductCatalogPurchaseSuggestKanbanRecord extends ProductCatalogKanbanRecord{getRecordClasses(...args){const classes=super.getRecordClasses(args)||"";const catalogData=this.productCatalogData||{};if(catalogData.suggested_qty&&catalogData.suggested_qty==catalogData.quantity){return classes+" o_hide_suggest_qty";}
+return classes;}
+get orderLineComponent(){return ProductCatalogPurchaseSuggestOrderLine;}
+addProduct(){const{min_qty=1,suggested_qty=0}=this.productCatalogData;let quantity_to_add=Math.max(min_qty,suggested_qty,1);if(this.productCatalogData.uomFactor){quantity_to_add=Math.ceil(quantity_to_add/this.productCatalogData.uomFactor);}
+super.addProduct(quantity_to_add);}}
+return __exports;});;
+
+/* /purchase_stock/static/src/product_catalog/record/purchase_order_line.js */
+odoo.define('@purchase_stock/product_catalog/record/purchase_order_line',['@purchase/product_catalog/purchase_order_line/purchase_order_line'],function(require){'use strict';let __exports={};const{ProductCatalogPurchaseOrderLine}=require("@purchase/product_catalog/purchase_order_line/purchase_order_line");const ProductCatalogPurchaseSuggestOrderLine=__exports.ProductCatalogPurchaseSuggestOrderLine=class ProductCatalogPurchaseSuggestOrderLine extends ProductCatalogPurchaseOrderLine{static props={...ProductCatalogPurchaseOrderLine.props,suggested_qty:{type:Number,optional:true},};}
+return __exports;});;
+
+/* /purchase_stock/static/src/product_catalog/search/search_model.js */
+odoo.define('@purchase_stock/product_catalog/search/search_model',['@account/components/product_catalog/search/search_model','@odoo/owl','@purchase_stock/product_catalog/utils'],function(require){'use strict';let __exports={};const{AccountProductCatalogSearchModel}=require("@account/components/product_catalog/search/search_model");const{useSubEnv}=require("@odoo/owl");const{getSuggestToggleState}=require("@purchase_stock/product_catalog/utils");const PurchaseStockProductCatalogSearchModel=__exports.PurchaseStockProductCatalogSearchModel=class PurchaseStockProductCatalogSearchModel extends AccountProductCatalogSearchModel{setup(){super.setup(...arguments);this.suggest={numberOfDays:0,basedOn:null,percentFactor:0,suggestToggle:{isOn:false},totalEstimatedPrice:0,};useSubEnv({suggest:this.suggest,_computeTotalEstimatedPrice:()=>this._computeTotalEstimatedPrice(),});}
+async load(config){Object.assign(this.suggest,{numberOfDays:config.context.vendor_suggest_days??this.suggest.numberOfDays,basedOn:config.context.vendor_suggest_based_on??this.suggest.basedOn,percentFactor:config.context.vendor_suggest_percent??this.suggest.percentFactor,suggestToggle:getSuggestToggleState(config.context.product_catalog_order_state),});if(this.suggest.suggestToggle.isOn){config.context["search_default_suggested"]=true;config.context["search_default_products_in_purchase_order"]=true;}
+await super.load(config);if(this.suggest.suggestToggle.isOn){this._computeTotalEstimatedPrice();}}
+async _fetchSections(){this._editSuggestContext();await super._fetchSections(...arguments);}
+toggleCategoryValue(){super.toggleCategoryValue(...arguments);if(this.suggest.suggestToggle.isOn){this._computeTotalEstimatedPrice();}}
+async _computeTotalEstimatedPrice(){this._editSuggestContext();const product_prices=await this.orm.searchRead("product.product",this.domain,["suggest_estimated_price"],{context:this.globalContext});this.suggest.totalEstimatedPrice=product_prices.reduce((sum,p)=>sum+Number(p.suggest_estimated_price||0),0);}
+toggleFilters(filterNames,turnOn){const searchFilters=new Map(Object.values(this.searchItems).map((i)=>[i.name,i]));const activeFilters=new Set(this.query.map((q)=>q.searchItemId));const toToggle=[];for(const name of filterNames){const item=searchFilters.get(name);const isOn=activeFilters.has(item.id);if((turnOn&&!isOn)||(!turnOn&&isOn)){toToggle.push(item.id);}}
+for(let i=0;i<toToggle.length;i++){const isLast=i===toToggle.length-1;this.blockNotification=!isLast;this.toggleSearchItem(toToggle[i]);}
+if(this.suggest.suggestToggle.isOn){this._computeTotalEstimatedPrice();}
+if(toToggle.length==0){this._notify();}}
+_editSuggestContext(){const suggestContext={suggest_domain:this.domain,suggest_based_on:this.suggest.basedOn,suggest_days:this.suggest.numberOfDays,suggest_percent:this.suggest.percentFactor,section_id:this.selectedSection.sectionId??false,};if(!this.suggest.suggestToggle.isOn){for(const k of new Set([...Object.keys(suggestContext)])){delete this.globalContext[k];}}else{this.globalContext={...this.globalContext,...suggestContext};}}}
+return __exports;});;
+
+/* /purchase_stock/static/src/product_catalog/search/search_panel.js */
+odoo.define('@purchase_stock/product_catalog/search/search_panel',['@odoo/owl','@web/core/l10n/translation','@account/components/product_catalog/search/search_panel','@purchase_stock/product_catalog/search/time_period_selection_fields','@web/views/fields/formatters','@web/core/utils/numbers'],function(require){'use strict';let __exports={};const{useEnv}=require("@odoo/owl");const{appTranslateFn}=require("@web/core/l10n/translation");const _t=(str,...args)=>appTranslateFn(str,"purchase_stock",...args);const{AccountProductCatalogSearchPanel}=require("@account/components/product_catalog/search/search_panel");const{TimePeriodSelectionField}=require("@purchase_stock/product_catalog/search/time_period_selection_fields");const{formatMonetary}=require("@web/views/fields/formatters");const{clamp}=require("@web/core/utils/numbers");const PurchaseSuggestCatalogSearchPanel=__exports.PurchaseSuggestCatalogSearchPanel=class PurchaseSuggestCatalogSearchPanel extends AccountProductCatalogSearchPanel{static template="purchase_stock.ProductCatalogSearchPanel";static components={...AccountProductCatalogSearchPanel.components,TimePeriodSelectionField,};static basedOnOptions=[["actual_demand",_t("Forecasted")],["one_week",_t("Last 7 days")],["30_days",_t("Last 30 days")],["three_months",_t("Last 3 months")],["one_year",_t("Last 12 months")],["last_year",_t("Same month last year")],["last_year_m_plus_1",_t("Next month last year")],["last_year_m_plus_2",_t("After next month last year")],["last_year_quarter",_t("Last year quarter")],];setup(){super.setup();this.suggest=useEnv().suggest;this.toggleSuggest=useEnv().toggleSuggest;this.debouncedReloadKanban=useEnv().debouncedReloadKanban;this.reloadKanban=useEnv().reloadKanban;this.addAllProducts=useEnv().addAllProducts;this.displaySuggest=this.suggest.poState==="draft";this.tooltipTitle=_t("Get recommendations of products to purchase at %(vendorName)s based on stock on hand, incoming quantities, "+"and expected sales volumes.\n\n Set a reference period to estimate sales, and use the percentage "+"to take into account seasonality and the increase/decrease of business.",{vendorName:this.suggest.vendorName});}
+onDaysInput(ev){const value=parseInt(ev.target.value,10)||0;const boundedVal=clamp(value,0,999);this.suggest.numberOfDays=boundedVal;ev.target.value=boundedVal;this.debouncedReloadKanban();}
+onPercentFactorInput(ev){const value=parseInt(ev.target.value,10)||0;const boundedVal=clamp(value,0,999);this.suggest.percentFactor=boundedVal;ev.target.value=boundedVal;this.debouncedReloadKanban();}
+get estimatedSuggestPrice(){const{currencyId,digits}=this.suggest;return formatMonetary(this.suggest.totalEstimatedPrice,{currencyId,digits});}
+get timePeriodProps(){return{name:"based_on",required:true,record:{data:{based_on:this.suggest.basedOn},fields:{based_on:{selection:this.constructor.basedOnOptions}},},onChange:(val)=>{this.suggest.basedOn=val;this.reloadKanban();},};}
+selectAllOnClick(ev){const el=ev.currentTarget;if(el.disabled||el.readOnly){return;}
+ev.preventDefault();el.focus();el.select();}}
+return __exports;});;
+
+/* /purchase_stock/static/src/product_catalog/search/time_period_selection_fields.js */
+odoo.define('@purchase_stock/product_catalog/search/time_period_selection_fields',['@web/core/l10n/translation','@web/core/registry','@web/views/fields/selection/selection_field'],function(require){'use strict';let __exports={};const{appTranslateFn}=require("@web/core/l10n/translation");const _t=(str,...args)=>appTranslateFn(str,"purchase_stock",...args);const{registry}=require("@web/core/registry");const{selectionField,SelectionField}=require("@web/views/fields/selection/selection_field");const{DateTime}=luxon;const TimePeriodSelectionField=__exports.TimePeriodSelectionField=class TimePeriodSelectionField extends SelectionField{static props={...SelectionField.props,onChange:{type:Function,optional:true},};onChange(ev){super.onChange(ev);if(this.props.onChange){this.props.onChange(ev);}}
+get options(){const date1=DateTime.now().set({day:1}).minus({years:1});const date2=date1.plus({months:1});const date3=date1.plus({months:2});const options=[];for(const option of this.props.record.fields[this.props.name].selection){if(option[0]==="last_year"){options.push([option[0],`${date1.monthLong} ${date1.year}`]);}else if(option[0]==="last_year_m_plus_1"){options.push([option[0],`${date2.monthLong} ${date2.year}`]);}else if(option[0]==="last_year_m_plus_2"){options.push([option[0],`${date3.monthLong} ${date3.year}`]);}else if(option[0]==="last_year_quarter"){let beginDate=date1.monthShort;const endDate=`${date3.monthShort} ${date3.year}`;if(date1.year!==date3.year){beginDate+=` ${date1.year}`;}
+options.push([option[0],`${beginDate}-${endDate}`]);}else if(option[0]!==false&&option[1]!==""){options.push(option);}}
+return options;}}
+const timePeriodSelectionField=__exports.timePeriodSelectionField={...selectionField,component:TimePeriodSelectionField,displayName:_t("Time Perdiod Selection"),supportedTypes:["selection"],};registry.category("fields").add("time_period_selection",timePeriodSelectionField);return __exports;});;
+
+/* /purchase_stock/static/src/product_catalog/utils.js */
+odoo.define('@purchase_stock/product_catalog/utils',[],function(require){'use strict';let __exports={};__exports.getSuggestToggleState=getSuggestToggleState;function getSuggestToggleState(poState){if(poState=="draft"){const toggle=JSON.parse(localStorage.getItem("purchase_stock.suggest_toggle_state"));return toggle??{isOn:false};}
+return{isOn:false};}
+return __exports;});;
+
+/* /purchase_stock/static/src/stock_valuation/stock_valuation_report.js */
+odoo.define('@purchase_stock/stock_valuation/stock_valuation_report',['@web/core/l10n/translation','@web/core/utils/patch','@stock_account/stock_valuation/stock_valuation_report'],function(require){'use strict';let __exports={};const{appTranslateFn}=require("@web/core/l10n/translation");const _t=(str,...args)=>appTranslateFn(str,"purchase_stock",...args);const{patch}=require("@web/core/utils/patch");const{StockValuationReport}=require("@stock_account/stock_valuation/stock_valuation_report");patch(StockValuationReport.prototype,{get accrual(){const accrual=super.accrual;const notInvoicedReceivedGoods=this.data.not_invoiced_received_goods;notInvoicedReceivedGoods.display_name=_t("Goods Received Not Invoiced");notInvoicedReceivedGoods.method=this.openPurchaseOrder.bind(this);notInvoicedReceivedGoods.index=accrual.lines.length;accrual.lines.push(this.data.not_invoiced_received_goods);accrual.value+=this.data.not_invoiced_received_goods.value;this.purchaseOrderIds=notInvoicedReceivedGoods.lines.map((line)=>line.id);return accrual;},get notInvoicedReceivedValuation(){return this.formatMonetary(this.data.not_invoiced_received_goods.value);},openPurchaseOrder(line=false){const action={type:"ir.actions.act_window",name:_t("Purchase Orders"),res_model:"purchase.order",views:[[false,"list"],[false,"form"]],target:"current",}
+if(line?.id){action.views=[[false,"form"]],action.res_id=line.id;}else{action.domain=[["id","in",this.purchaseOrderIds]];}
+return this.actionService.doAction(action);},});return __exports;});;
 
 /* /payment/static/src/js/payment_wizard_copy_clipboard_field.js */
 odoo.define('@payment/js/payment_wizard_copy_clipboard_field',['@web/core/registry','@web/views/fields/copy_clipboard/copy_clipboard_field','@web/core/copy_button/copy_button'],function(require){'use strict';let __exports={};const{registry}=require("@web/core/registry");const{copyClipboardButtonField,CopyClipboardButtonField,}=require("@web/views/fields/copy_clipboard/copy_clipboard_field");const{CopyButton}=require("@web/core/copy_button/copy_button");class PaymentWizardCopyButton extends CopyButton{async onClick(){await this.env.model.mutex.getUnlockedDef();return super.onClick();}}
@@ -24033,6 +24175,348 @@ const kanbanMany2OneAvatarResourceField=__exports.kanbanMany2OneAvatarResourceFi
 /* /resource_mail/static/src/views/fields/many2one_avatar_resource/many2one_avatar_resource_field.js */
 odoo.define('@resource_mail/views/fields/many2one_avatar_resource/many2one_avatar_resource_field',['@odoo/owl','@resource_mail/components/avatar_resource/avatar_resource','@web/core/registry','@web/views/fields/many2one/many2one','@web/views/fields/many2one/many2one_field'],function(require){'use strict';let __exports={};const{Component}=require("@odoo/owl");const{AvatarResource}=require("@resource_mail/components/avatar_resource/avatar_resource");const{registry}=require("@web/core/registry");const{computeM2OProps,Many2One}=require("@web/views/fields/many2one/many2one");const{buildM2OFieldDescription,extractM2OFieldProps,Many2OneField}=require("@web/views/fields/many2one/many2one_field");const Many2OneAvatarResourceField=__exports.Many2OneAvatarResourceField=class Many2OneAvatarResourceField extends Component{static template="resource_mail.Many2OneAvatarResourceField";static components={AvatarResource,Many2One};static props={...Many2OneField.props};get m2oProps(){return{...computeM2OProps(this.props),specification:{resource_type:{},},};}}
 const many2OneAvatarResourceField=__exports.many2OneAvatarResourceField={...buildM2OFieldDescription(Many2OneAvatarResourceField),additionalClasses:["o_field_many2one_avatar"],extractProps(staticInfo,dynamicInfo){return{...extractM2OFieldProps(staticInfo,dynamicInfo),canOpen:"no_open"in staticInfo.options?!staticInfo.options.no_open:staticInfo.viewType==="form",};},fieldDependencies:[{name:"display_name",type:"char"},{name:"resource_type",type:"selection"},],};registry.category("fields").add("many2one_avatar_resource",many2OneAvatarResourceField);return __exports;});;
+
+/* /sales_team/static/src/js/crm_team_form.js */
+odoo.define('@sales_team/js/crm_team_form',['@web/core/l10n/translation','@web/views/form/form_view','@web/views/form/form_controller','@web/core/registry','@web/core/user','@web/core/utils/hooks'],function(require){'use strict';let __exports={};const{appTranslateFn}=require("@web/core/l10n/translation");const _t=(str,...args)=>appTranslateFn(str,"sales_team",...args);const{formView}=require("@web/views/form/form_view");const{FormController}=require("@web/views/form/form_controller");const{registry}=require("@web/core/registry");const{user}=require("@web/core/user");const{useService}=require("@web/core/utils/hooks");class CrmTeamFormController extends FormController{setup(){super.setup();this.orm=useService("orm");}
+async beforeExecuteActionButton(clickParams){if(clickParams.name==="crm_team_activate_multi_membership"){if(!user.hasGroup("sales_team.group_sale_manager")){return false;}
+const alert=document.querySelector(".alert");try{await this.orm.call("ir.config_parameter","set_param",["sales_team.membership_multi",true,]);alert?.classList.add('d-none');}catch{if(alert){alert.classList.replace("alert-info","alert-danger");alert.textContent=_t("An error occurred while activating the Multi-Team option.");}}
+return false;}
+return super.beforeExecuteActionButton(...arguments);}}
+registry.category("views").add("crm_team_form",{...formView,Controller:CrmTeamFormController,});return __exports;});;
+
+/* /sale/static/src/js/badge_extra_price/badge_extra_price.js */
+odoo.define('@sale/js/badge_extra_price/badge_extra_price',['@odoo/owl','@web/core/currency'],function(require){'use strict';let __exports={};const{Component}=require("@odoo/owl");const{formatCurrency}=require("@web/core/currency");const BadgeExtraPrice=__exports.BadgeExtraPrice=class BadgeExtraPrice extends Component{static template="sale.BadgeExtraPrice";static props={price:Number,currencyId:Number,};getFormattedPrice(){return formatCurrency(Math.abs(this.props.price),this.props.currencyId);}}
+return __exports;});;
+
+/* /sale/static/src/js/sale_action_helper/sale_action_helper.js */
+odoo.define('@sale/js/sale_action_helper/sale_action_helper',['@odoo/owl','@web/core/utils/hooks','@sale/js/sale_action_helper/sale_action_helper_dialog'],function(require){'use strict';let __exports={};const{Component}=require("@odoo/owl");const{useService}=require("@web/core/utils/hooks");const{SaleActionHelperDialog}=require("@sale/js/sale_action_helper/sale_action_helper_dialog");const SaleActionHelper=__exports.SaleActionHelper=class SaleActionHelper extends Component{static template="sale.SaleActionHelper";static props={noContentHelp:String,}
+setup(){this.dialogService=useService("dialog");}
+openVideoPreview(){this.dialogService.add(SaleActionHelperDialog,{url:"https://www.youtube.com/embed/N4zw-2t6spk?autoplay=1",})}};return __exports;});;
+
+/* /sale/static/src/js/sale_action_helper/sale_action_helper_dialog.js */
+odoo.define('@sale/js/sale_action_helper/sale_action_helper_dialog',['@odoo/owl','@web/core/dialog/dialog'],function(require){'use strict';let __exports={};const{Component}=require("@odoo/owl");const{Dialog}=require("@web/core/dialog/dialog");const SaleActionHelperDialog=__exports.SaleActionHelperDialog=class SaleActionHelperDialog extends Component{static components={Dialog};static template="sale.SaleActionHelperDialog";static props={url:String,close:Function,};}
+return __exports;});;
+
+/* /sale/static/src/js/combo_configurator_dialog/combo_configurator_dialog.js */
+odoo.define('@sale/js/combo_configurator_dialog/combo_configurator_dialog',['@odoo/owl','@web/core/currency','@web/core/dialog/dialog','@web/core/l10n/translation','@web/core/network/rpc','@web/core/registry','@web/core/utils/hooks','@sale/js/models/product_combo','@sale/js/models/product_template_attribute_line','@sale/js/product_card/product_card','@sale/js/quantity_buttons/quantity_buttons'],function(require){'use strict';let __exports={};const{Component,onMounted,onWillUnmount,useState,useSubEnv}=require('@odoo/owl');const{formatCurrency}=require('@web/core/currency');const{Dialog}=require('@web/core/dialog/dialog');const{_t}=require('@web/core/l10n/translation');const{rpc}=require('@web/core/network/rpc');const{registry}=require('@web/core/registry');const{useService}=require('@web/core/utils/hooks');const{ProductCombo}=require("@sale/js/models/product_combo");const{ProductTemplateAttributeLine}=require("@sale/js/models/product_template_attribute_line");const{ProductCard}=require("@sale/js/product_card/product_card");const{QuantityButtons}=require("@sale/js/quantity_buttons/quantity_buttons");const ComboConfiguratorDialog=__exports.ComboConfiguratorDialog=class ComboConfiguratorDialog extends Component{static template='sale.ComboConfiguratorDialog';static components={Dialog,ProductCard,QuantityButtons};static props={product_tmpl_id:Number,display_name:String,quantity:Number,price:Number,combos:{type:Array,element:ProductCombo},currency_id:Number,company_id:{type:Number,optional:true},pricelist_id:{type:Number,optional:true},date:String,price_info:{type:String,optional:true},edit:{type:Boolean,optional:true},options:{type:Object,optional:true,shape:{showQuantity:{type:Boolean,optional:true},showPrice:{type:Boolean,optional:true},},},save:Function,discard:Function,close:Function,};setup(){this.dialog=useService('dialog');this.env.dialogData.dismiss=!this.props.edit&&this.props.discard.bind(this);this.state=useState({selectedComboItems:new Map(),quantity:this.props.quantity,basePrice:this.props.price,isLoading:false,});this._initSelectedComboItems();this.getPriceUrl='/sale/combo_configurator/get_price';useSubEnv({currency:{id:this.props.currency_id}});this.unconfigurableCombos=this.props.combos.filter(combo=>!combo.isConfigurable);this.configurableCombos=this.props.combos.filter(combo=>combo.isConfigurable);onMounted(()=>this.env.bus.trigger("FORM-CONTROLLER:FORM-IN-DIALOG:ADD"));onWillUnmount(()=>this.env.bus.trigger("FORM-CONTROLLER:FORM-IN-DIALOG:REMOVE"));}
+async selectComboItem(comboId,comboItem){comboItem=this.getSelectedOrProvidedComboItem(comboId,comboItem);let product=comboItem.product;if(comboItem.is_configurable){const ProductConfiguratorDialog=registry.category('sale_configurator_dialogs').get('product');this.dialog.add(ProductConfiguratorDialog,{productTemplateId:product.product_tmpl_id,ptavIds:product.selectedPtavIds,customPtavs:product.selectedCustomPtavs,quantity:1,companyId:this.props.company_id,pricelistId:this.props.pricelist_id,currencyId:this.props.currency_id,soDate:this.props.date,edit:true,options:{canChangeVariant:false,showQuantity:false,showPrice:false,showPackaging:false,},size:"md",save:async configuredProduct=>{const selectedComboItem=comboItem.deepCopy();selectedComboItem.product.ptals=configuredProduct.attribute_lines.map(ProductTemplateAttributeLine.fromProductConfiguratorPtal);this.state.selectedComboItems.set(comboId,selectedComboItem);},discard:()=>{},...this._getAdditionalDialogProps(),});}else{this.state.selectedComboItems.set(comboId,comboItem.deepCopy());}}
+async setQuantity(quantity){if(quantity<=0)quantity=1;this.state.quantity=quantity;this.state.basePrice=await rpc(this.getPriceUrl,{product_tmpl_id:this.props.product_tmpl_id,currency_id:this.props.currency_id,quantity:quantity,date:this.props.date,company_id:this.props.company_id,pricelist_id:this.props.pricelist_id,...this._getAdditionalRpcParams(),});}
+getSelectedOrProvidedComboItem(comboId,comboItem){const selectedComboItem=this.state.selectedComboItems.get(comboId);const isComboItemAlreadySelected=selectedComboItem?.id===comboItem.id;return isComboItemAlreadySelected?selectedComboItem:comboItem;}
+get totalMessage(){return _t("Total: %s",this.formattedTotalPrice);}
+get formattedTotalPrice(){return formatCurrency(this.state.quantity*this._comboPrice,this.props.currency_id);}
+get areAllCombosSelected(){return this.state.selectedComboItems.size===this.props.combos.length;}
+async confirm(options){this.state.isLoading=true;await this.props.save(this._comboProductData,this._selectedComboItems,options).finally(()=>this.state.isLoading=false)
+this.props.close();}
+cancel(){if(!this.props.edit){this.props.discard();}
+this.props.close();}
+_initSelectedComboItems(){for(const combo of this.props.combos){const comboItem=combo.selectedComboItem;if(comboItem){this.state.selectedComboItems.set(combo.id,comboItem.deepCopy());}}}
+get _comboPrice(){const extraPrice=Array.from(this.state.selectedComboItems.values()).reduce((price,item)=>price+item.totalExtraPrice,0);return this.state.basePrice+extraPrice;}
+get _comboProductData(){return{quantity:this.state.quantity,price:this._comboPrice,};}
+get _selectedComboItems(){const sortedItems=new Map([...this.state.selectedComboItems.entries()].sort((entry1,entry2)=>this.props.combos.findIndex(combo=>combo.id===entry1[0])
+-this.props.combos.findIndex(combo=>combo.id===entry2[0])));return Array.from(sortedItems.values());}
+_getAdditionalRpcParams(){return{};}
+_getAdditionalDialogProps(){return{};}}
+registry.category('sale_configurator_dialogs').add('combo',ComboConfiguratorDialog);return __exports;});;
+
+/* /sale/static/src/js/models/product_combo.js */
+odoo.define('@sale/js/models/product_combo',['@sale/js/models/product_combo_item'],function(require){'use strict';let __exports={};const{ProductComboItem}=require("@sale/js/models/product_combo_item");const ProductCombo=__exports.ProductCombo=class ProductCombo{constructor({id,name,combo_items}){this.id=id;this.name=name;this.combo_items=combo_items.map(item=>new ProductComboItem(item));}
+get selectedComboItem(){return this.combo_items.find(item=>item.is_selected);}
+get preselectedComboItem(){return this.combo_items.find(item=>item.is_preselected);}
+get isConfigurable(){return!this.combo_items.some(item=>item.is_preselected);}}
+return __exports;});;
+
+/* /sale/static/src/js/models/product_combo_item.js */
+odoo.define('@sale/js/models/product_combo_item',['@sale/js/models/product_product'],function(require){'use strict';let __exports={};const{ProductProduct}=require("@sale/js/models/product_product");const ProductComboItem=__exports.ProductComboItem=class ProductComboItem{constructor({id,extra_price,is_preselected,is_selected,is_configurable,product}){this.id=id;this.extra_price=extra_price;this.is_preselected=is_preselected;this.is_selected=is_selected;this.is_configurable=is_configurable;this.product=new ProductProduct(product);}
+get totalExtraPrice(){return this.extra_price+this.product.selectedNoVariantPtavsPriceExtra;}
+get name(){return this.product.display_name;}
+deepCopy(){return new ProductComboItem(JSON.parse(JSON.stringify(this)));}}
+return __exports;});;
+
+/* /sale/static/src/js/models/product_product.js */
+odoo.define('@sale/js/models/product_product',['@sale/js/models/product_template_attribute_line'],function(require){'use strict';let __exports={};const{ProductTemplateAttributeLine}=require("@sale/js/models/product_template_attribute_line");const ProductProduct=__exports.ProductProduct=class ProductProduct{constructor(...args){this.setup(...args);}
+setup({id,product_tmpl_id,display_name,ptals,image_src,description}){this.id=id;this.product_tmpl_id=product_tmpl_id;this.display_name=display_name;this.ptals=ptals.map(ptal=>new ProductTemplateAttributeLine(ptal));this.image_src=image_src;this.description=description;}
+get noVariantPtals(){return this.ptals.filter(ptal=>ptal.create_variant==='no_variant');}
+get selectedNoVariantPtavsPriceExtra(){return this.noVariantPtals.reduce((price,ptal)=>price+ptal.selectedPtavsPriceExtra,0);}
+get selectedPtavIds(){return this.ptals.flatMap(ptal=>ptal.selected_ptavs).map(ptav=>ptav.id);}
+get selectedNoVariantPtavIds(){return this.noVariantPtals.flatMap(ptal=>ptal.selected_ptavs).map(ptav=>ptav.id);}
+get selectedCustomPtavs(){return this.ptals.filter(ptal=>ptal.hasSelectedCustomPtav).flatMap(ptal=>ptal.selected_ptavs).map(ptav=>({'id':ptav.id,'value':ptav.custom_value,}));}}
+return __exports;});;
+
+/* /sale/static/src/js/models/product_template_attribute_line.js */
+odoo.define('@sale/js/models/product_template_attribute_line',['@sale/js/models/product_template_attribute_value'],function(require){'use strict';let __exports={};const{ProductTemplateAttributeValue}=require("@sale/js/models/product_template_attribute_value");const ProductTemplateAttributeLine=__exports.ProductTemplateAttributeLine=class ProductTemplateAttributeLine{constructor({id,name,create_variant,selected_ptavs}){this.id=id;this.name=name;this.create_variant=create_variant;this.selected_ptavs=selected_ptavs.map(ptav=>new ProductTemplateAttributeValue(ptav));}
+static fromProductConfiguratorPtal(productConfiguratorPtal){const selectedPtavIds=new Set(productConfiguratorPtal.selected_attribute_value_ids);const selectedPtavs=productConfiguratorPtal.attribute_values.filter(ptav=>selectedPtavIds.has(ptav.id)).map(ptav=>new ProductTemplateAttributeValue({id:ptav.id,name:ptav.name,price_extra:ptav.price_extra,custom_value:productConfiguratorPtal.customValue,}));return new ProductTemplateAttributeLine({id:productConfiguratorPtal.id,name:productConfiguratorPtal.attribute.name,create_variant:productConfiguratorPtal.create_variant,selected_ptavs:selectedPtavs,});}
+get selectedPtavsPriceExtra(){return this.selected_ptavs.reduce((price,ptav)=>price+ptav.price_extra,0);}
+get hasSelectedCustomPtav(){return this.selected_ptavs.some(ptav=>ptav.custom_value);}
+get ptalDisplayName(){const selectedPtavNames=this.selected_ptavs.map(ptav=>ptav.name).join(', ');let ptalDisplayName=`${this.name}: ${selectedPtavNames}`;if(this.hasSelectedCustomPtav){ptalDisplayName+=` (${this.selected_ptavs[0].custom_value})`;}
+return ptalDisplayName;}}
+return __exports;});;
+
+/* /sale/static/src/js/models/product_template_attribute_value.js */
+odoo.define('@sale/js/models/product_template_attribute_value',[],function(require){'use strict';let __exports={};const ProductTemplateAttributeValue=__exports.ProductTemplateAttributeValue=class ProductTemplateAttributeValue{constructor({id,name,price_extra,custom_value}){this.id=id;this.name=name;this.price_extra=price_extra;this.custom_value=custom_value;}}
+return __exports;});;
+
+/* /sale/static/src/js/product/product.js */
+odoo.define('@sale/js/product/product',['@odoo/owl','@web/core/currency','@sale/js/product_template_attribute_line/product_template_attribute_line','@sale/js/quantity_buttons/quantity_buttons','@sale/js/sale_utils','@web/core/l10n/translation'],function(require){'use strict';let __exports={};const{Component}=require("@odoo/owl");const{formatCurrency}=require("@web/core/currency");const{ProductTemplateAttributeLine:PTAL}=require("@sale/js/product_template_attribute_line/product_template_attribute_line");const{QuantityButtons}=require("@sale/js/quantity_buttons/quantity_buttons");const{getSelectedCustomPtav}=require("@sale/js/sale_utils");const{appTranslateFn}=require("@web/core/l10n/translation");const _t=(str,...args)=>appTranslateFn(str,"sale",...args);const Product=__exports.Product=class Product extends Component{static components={PTAL,QuantityButtons};static template="sale.Product";static props={id:{type:[Number,{value:false}],optional:true},product_tmpl_id:Number,product_type:String,display_name:String,description_sale:[Boolean,String],price:Number,quantity:Number,uom:{type:Object,optional:true},available_uoms:{type:Object,optional:true},attribute_lines:Object,optional:Boolean,imageURL:{type:String,optional:true},archived_combinations:Array,exclusions:Object,parent_exclusions:Object,parent_product_tmpl_id:{type:Number,optional:true},price_info:{type:String,optional:true},selectedComboItems:{type:Array,element:Object,shape:{name:String,},optional:true,},show_extra_price:{type:Boolean,optional:true},};static defaultProps={show_extra_price:true,};getFormattedPrice(){return formatCurrency(this.props.price,this.env.currency.id);}
+get isMainProduct(){return this.env.mainProductTmplId===this.props.product_tmpl_id;}
+get imageUrl(){const modelPath=this.props.id?`product.product/${ this.props.id }`:`product.template/${ this.props.product_tmpl_id }`;return`/web/image/${ modelPath }/image_256`;}
+shouldShowPtal(ptal){return this.env.canChangeVariant||ptal.create_variant==='no_variant'||!!getSelectedCustomPtav(ptal);}
+get UoMTitle(){return _t("Packaging");}
+async selectUoM(event){this.env.setUoM(this.props.product_tmpl_id,parseInt(event.target.value));}}
+return __exports;});;
+
+/* /sale/static/src/js/product_card/product_card.js */
+odoo.define('@sale/js/product_card/product_card',['@odoo/owl','@sale/js/badge_extra_price/badge_extra_price','@sale/js/models/product_product'],function(require){'use strict';let __exports={};const{Component}=require('@odoo/owl');const{BadgeExtraPrice}=require("@sale/js/badge_extra_price/badge_extra_price");const{ProductProduct}=require("@sale/js/models/product_product");const ProductCard=__exports.ProductCard=class ProductCard extends Component{static template='sale.ProductCard';static components={BadgeExtraPrice};static props={product:ProductProduct,extraPrice:{type:Number,optional:true},onClick:Function,isSelected:{type:Boolean,optional:true},isConfigurable:{type:Boolean,optional:true}};shouldShowPtal(ptal){return(ptal.selected_ptavs.length>0&&(ptal.hasSelectedCustomPtav||ptal.create_variant==='no_variant'));}}
+return __exports;});;
+
+/* /sale/static/src/js/product_configurator_dialog/product_configurator_dialog.js */
+odoo.define('@sale/js/product_configurator_dialog/product_configurator_dialog',['@odoo/owl','@web/core/dialog/dialog','@web/core/l10n/translation','@web/core/network/rpc','@web/core/registry','@web/core/utils/hooks','@sale/js/models/product_combo','@sale/js/product_list/product_list','@web/core/currency'],function(require){'use strict';let __exports={};const{Component,onMounted,onWillStart,onWillUnmount,useState,useSubEnv}=require("@odoo/owl");const{Dialog}=require('@web/core/dialog/dialog');const{appTranslateFn}=require("@web/core/l10n/translation");const _t=(str,...args)=>appTranslateFn(str,"sale",...args);const{rpc}=require("@web/core/network/rpc");const{registry}=require('@web/core/registry');const{useService}=require('@web/core/utils/hooks');const{ProductCombo}=require("@sale/js/models/product_combo");const{ProductList}=require("@sale/js/product_list/product_list");const{formatCurrency}=require('@web/core/currency');const ProductConfiguratorDialog=__exports.ProductConfiguratorDialog=class ProductConfiguratorDialog extends Component{static components={Dialog,ProductList};static template='sale.ProductConfiguratorDialog';static props={productTemplateId:Number,ptavIds:{type:Array,element:Number},customPtavs:{type:Array,element:Object,shape:{id:Number,value:String,}},quantity:Number,productUOMId:{type:Number,optional:true},companyId:{type:Number,optional:true},pricelistId:{type:Number,optional:true},currencyId:{type:Number,optional:true},selectedComboItems:{type:Array,element:Object,shape:{name:String,},optional:true,},soDate:String,size:{type:String,optional:true,validate:(s)=>["sm","md","lg","xl","fs","fullscreen"].includes(s),},edit:{type:Boolean,optional:true},options:{type:Object,optional:true,shape:{canChangeVariant:{type:Boolean,optional:true},showQuantity:{type:Boolean,optional:true},showPrice:{type:Boolean,optional:true},showPackaging:{type:Boolean,optional:true},},},save:Function,discard:Function,close:Function,};static defaultProps={edit:false,}
+setup(){this.title=_t("Configure your product");this.dialog=useService("dialog");this.env.dialogData.dismiss=!this.props.edit&&this.props.discard.bind(this);this.state=useState({products:[],optionalProducts:[],});this.currency={id:this.props.currencyId};this.getValuesUrl='/sale/product_configurator/get_values';this.createProductUrl='/sale/product_configurator/create_product';this.updateCombinationUrl='/sale/product_configurator/update_combination';this.getOptionalProductsUrl='/sale/product_configurator/get_optional_products';this.getComboDataUrl='/sale/combo_configurator/get_data';useSubEnv({mainProductTmplId:this.props.productTemplateId,currency:this.currency,canChangeVariant:this.props.options?.canChangeVariant??true,showQuantity:this.props.options?.showQuantity??true,showPackaging:this.props.options?.showPackaging??true,showPrice:this.props.options?.showPrice??true,addProduct:this._addProduct.bind(this),removeProduct:this._removeProduct.bind(this),setQuantity:this._setQuantity.bind(this),setUoM:this._setUnitOfMeasure.bind(this),updateProductTemplateSelectedPTAV:this._updateProductTemplateSelectedPTAV.bind(this),updatePTAVCustomValue:this._updatePTAVCustomValue.bind(this),isPossibleCombination:this._isPossibleCombination,});onWillStart(async()=>{const{products,optional_products,currency_id,}=await this._loadData(this.props.edit);products[0].selectedComboItems=this.props.selectedComboItems||[];this.state.products=products;this.state.optionalProducts=optional_products;for(const customPtav of this.props.customPtavs){this._updatePTAVCustomValue(this.env.mainProductTmplId,customPtav.id,customPtav.value);}
+this._checkExclusions(this.state.products[0]);this.currency.id??=currency_id;});onMounted(()=>this.env.bus.trigger("FORM-CONTROLLER:FORM-IN-DIALOG:ADD"));onWillUnmount(()=>this.env.bus.trigger("FORM-CONTROLLER:FORM-IN-DIALOG:REMOVE"));}
+get totalMessage(){return _t("Total: %s",this.getFormattedTotal());}
+getFormattedTotal(){const total=(this.state.products||[]).reduce((sum,product)=>sum+product.price*product.quantity,0);return formatCurrency(total,this.currency.id);}
+async _loadData(onlyMainProduct){return rpc(this.getValuesUrl,{product_template_id:this.props.productTemplateId,quantity:this.props.quantity,currency_id:this.currency.id,so_date:this.props.soDate,product_uom_id:this.props.productUOMId,company_id:this.props.companyId,pricelist_id:this.props.pricelistId,ptav_ids:this.props.ptavIds,only_main_product:onlyMainProduct,show_packaging:this.env.showPackaging,...this._getAdditionalRpcParams(),});}
+async _createProduct(product){return rpc(this.createProductUrl,{product_template_id:product.product_tmpl_id,ptav_ids:this._getCombination(product),});}
+async _updateCombination(product,quantity,uomId){return rpc(this.updateCombinationUrl,{product_template_id:product.product_tmpl_id,ptav_ids:this._getCombination(product),currency_id:this.currency.id,so_date:this.props.soDate,quantity:quantity,product_uom_id:uomId,company_id:this.props.companyId,pricelist_id:this.props.pricelistId,...this._getAdditionalRpcParams(),});}
+async _getOptionalProducts(product){return rpc(this.getOptionalProductsUrl,{product_template_id:product.product_tmpl_id,ptav_ids:this._getCombination(product),parent_ptav_ids:this._getParentsCombination(product),currency_id:this.currency.id,so_date:this.props.soDate,company_id:this.props.companyId,pricelist_id:this.props.pricelistId,...this._getAdditionalRpcParams(),});}
+_getAdditionalRpcParams(){return{};}
+_getAdditionalDialogProps(){return{};}
+async _addProduct(productTmplId){const index=this.state.optionalProducts.findIndex(p=>p.product_tmpl_id===productTmplId);if(index>=0){const optionalProduct=this.state.optionalProducts[index];if(optionalProduct.product_type==='combo'){const comboData=await this._configureOptionalComboProduct(optionalProduct);if(!comboData){return;}
+optionalProduct.quantity=comboData.quantity;optionalProduct.price=comboData.price;optionalProduct.selectedComboItems=comboData.selectedComboItems;}
+this.state.products.push(...this.state.optionalProducts.splice(index,1));const product=this._findProduct(productTmplId);const newOptionalProducts=(await this._getOptionalProducts(product)).filter(p=>!this._findProduct(p.product_tmpl_id));this.state.optionalProducts.push(...newOptionalProducts);}}
+async _configureOptionalComboProduct(product){const ComboConfiguratorDialog=registry.category('sale_configurator_dialogs').get('combo');const{combos,...remainingData}=await rpc(this.getComboDataUrl,{product_tmpl_id:product.product_tmpl_id,currency_id:this.currency.id,quantity:product.quantity,date:this.props.soDate,company_id:this.props.companyId,pricelist_id:this.props.pricelistId,selected_combo_items:[],...this._getAdditionalRpcParams(),});const comboChoices=combos.map(combo=>new ProductCombo(combo));const preselectedComboItems=comboChoices.map(combo=>combo.preselectedComboItem).filter(Boolean);if(preselectedComboItems.length===comboChoices.length){const extraPrice=preselectedComboItems.reduce((price,item)=>price+item.totalExtraPrice,0);return this._getOptionalComboData({quantity:remainingData.quantity,price:remainingData.price+extraPrice},preselectedComboItems);}
+return new Promise(resolve=>{this.dialog.add(ComboConfiguratorDialog,{combos:comboChoices,...remainingData,company_id:this.props.companyId,pricelist_id:this.props.pricelistId,date:this.props.soDate,save:async(comboProductData,selectedComboItems)=>{resolve(this._getOptionalComboData(comboProductData,selectedComboItems));},discard:()=>resolve(false),...this._getAdditionalDialogProps(),});});}
+_getOptionalComboData(comboProductData,selectedComboItems){return{quantity:comboProductData.quantity,price:comboProductData.price,selectedComboItems,};}
+_removeProduct(productTmplId){const index=this.state.products.findIndex(p=>p.product_tmpl_id===productTmplId);if(index>=0){const[removedProduct]=this.state.products.splice(index,1);if(removedProduct.selectedComboItems){removedProduct.selectedComboItems=undefined;}
+this.state.optionalProducts.push(removedProduct);for(const childProduct of this._getChildProducts(productTmplId)){this._removeProduct(childProduct.product_tmpl_id);this.state.optionalProducts.splice(this.state.optionalProducts.findIndex(p=>p.product_tmpl_id===childProduct.product_tmpl_id),1);}}}
+async _setQuantity(productTmplId,quantity){if(quantity<=0){if(productTmplId===this.env.mainProductTmplId){quantity=1;}else{this._removeProduct(productTmplId);return true;}}
+const product=this._findProduct(productTmplId);if(product.quantity===quantity){return false;}
+product.quantity=quantity;const{price}=await this._updateCombination(product,quantity,product.uom.id);product.price=parseFloat(price);return true;}
+async _setUnitOfMeasure(productTmplId,uomId){const product=this._findProduct(productTmplId);if(product.uom.id===uomId){return false;}
+const combination=await this._updateCombination(product,product.quantity,uomId);this._handleUnitOfMeasureUpdate(product,combination,uomId);return true;}
+_handleUnitOfMeasureUpdate(product,combination,uomId){product.price=parseFloat(combination.price);product.uom=product.available_uoms.find((uom)=>uom.id===uomId);}
+async _updateProductTemplateSelectedPTAV(productTmplId,ptalId,ptavId,isMulti){const product=this._findProduct(productTmplId);const ptal=product.attribute_lines.find(line=>line.id===ptalId);ptavId=parseInt(ptavId);if(isMulti){const selectedPtavIds=new Set(ptal.selected_attribute_value_ids);selectedPtavIds.has(ptavId)?selectedPtavIds.delete(ptavId):selectedPtavIds.add(ptavId);ptal.selected_attribute_value_ids=Array.from(selectedPtavIds);}else{ptal.selected_attribute_value_ids=[ptavId];}
+this._checkExclusions(product);if(this._isPossibleCombination(product)){const updatedValues=await this._updateCombination(product,product.quantity,product.uom.id);Object.assign(product,updatedValues);if(!product.id&&product.attribute_lines.every(ptal=>ptal.create_variant==="always")){const combination=this._getCombination(product);product.archived_combinations=product.archived_combinations.concat([combination]);this._checkExclusions(product);}}}
+_updatePTAVCustomValue(productTmplId,ptavId,customValue){const product=this._findProduct(productTmplId);product.attribute_lines.find(ptal=>ptal.selected_attribute_value_ids.includes(ptavId)).customValue=customValue;}
+_checkExclusions(product){const combination=this._getCombination(product);const exclusions=product.exclusions;const parentExclusions=product.parent_exclusions;const archivedCombinations=product.archived_combinations;const parentCombination=this._getParentsCombination(product);const childProducts=this._getChildProducts(product.product_tmpl_id)
+const ptavList=product.attribute_lines.flat().flatMap(ptal=>ptal.attribute_values)
+ptavList.map(ptav=>ptav.excluded=false);if(exclusions){for(const ptavId of combination){for(const excludedPtavId of exclusions[ptavId]){ptavList.find(ptav=>ptav.id===excludedPtavId).excluded=true;}}}
+if(parentCombination){for(const ptavId of parentCombination){for(const excludedPtavId of(parentExclusions[ptavId]||[])){const ptav=ptavList.find(ptav=>ptav.id===excludedPtavId);if(ptav){ptav.excluded=true;}}}}
+if(archivedCombinations){for(const excludedCombination of archivedCombinations){const ptavCommon=excludedCombination.filter((ptav)=>combination.includes(ptav));if(ptavCommon.length===combination.length){for(const excludedPtavId of ptavCommon){ptavList.find(ptav=>ptav.id===excludedPtavId).excluded=true;}}else if(ptavCommon.length===(combination.length-1)){const disabledPtavId=excludedCombination.find((ptav)=>!combination.includes(ptav));const excludedPtav=ptavList.find(ptav=>ptav.id===disabledPtavId)
+if(excludedPtav){excludedPtav.excluded=true;}}}}
+for(const optionalProductTmpl of childProducts){this._checkExclusions(optionalProductTmpl);}}
+_findProduct(productTmplId){return this.state.products.find(p=>p.product_tmpl_id===productTmplId)||this.state.optionalProducts.find(p=>p.product_tmpl_id===productTmplId);}
+_getChildProducts(productTmplId){return[...this.state.products.filter(p=>p.parent_product_tmpl_id===productTmplId),...this.state.optionalProducts.filter(p=>p.parent_product_tmpl_id===productTmplId)]}
+_getCombination(product){return product.attribute_lines.flatMap(ptal=>ptal.selected_attribute_value_ids);}
+_getParentsCombination(product){return product.parent_product_tmpl_id?this._getCombination(this._findProduct(product.parent_product_tmpl_id)):[];}
+_isPossibleCombination(product){return product.attribute_lines.every(ptal=>{const selectedPtavIds=new Set(ptal.selected_attribute_value_ids);return ptal.attribute_values.filter(ptav=>selectedPtavIds.has(ptav.id)).every(ptav=>!ptav.excluded);});}
+isPossibleConfiguration(){return[...this.state.products].every(p=>this._isPossibleCombination(p));}
+async onConfirm(options){if(!this.isPossibleConfiguration())return;for(const product of this.state.products){if(!product.id&&product.attribute_lines.some(ptal=>ptal.create_variant==="dynamic")){const productId=await this._createProduct(product);product.id=parseInt(productId);}}
+await this.props.save(this.state.products.find(p=>p.product_tmpl_id===this.env.mainProductTmplId),this.state.products.filter(p=>p.product_tmpl_id!==this.env.mainProductTmplId),options,);this.props.close();}
+onDiscard(){if(!this.props.edit){this.props.discard();}
+this.props.close();}}
+registry.category('sale_configurator_dialogs').add('product',ProductConfiguratorDialog);return __exports;});;
+
+/* /sale/static/src/js/product_list/product_list.js */
+odoo.define('@sale/js/product_list/product_list',['@odoo/owl','@web/core/l10n/translation','@sale/js/product/product'],function(require){'use strict';let __exports={};const{Component}=require("@odoo/owl");const{appTranslateFn}=require("@web/core/l10n/translation");const _t=(str,...args)=>appTranslateFn(str,"sale",...args);const{Product}=require("@sale/js/product/product");const ProductList=__exports.ProductList=class ProductList extends Component{static components={Product};static template="sale.ProductList";static props={products:Array,areProductsOptional:{type:Boolean,optional:true},};static defaultProps={areProductsOptional:false,};setup(){this.optionalProductsTitle=_t("Add optional products");}}
+return __exports;});;
+
+/* /sale/static/src/js/product_template_attribute_line/product_template_attribute_line.js */
+odoo.define('@sale/js/product_template_attribute_line/product_template_attribute_line',['@web/core/l10n/translation','@odoo/owl','@web/core/currency','@sale/js/badge_extra_price/badge_extra_price','@sale/js/sale_utils'],function(require){'use strict';let __exports={};const{appTranslateFn}=require("@web/core/l10n/translation");const _t=(str,...args)=>appTranslateFn(str,"sale",...args);const{Component}=require("@odoo/owl");const{formatCurrency}=require("@web/core/currency");const{BadgeExtraPrice}=require("@sale/js/badge_extra_price/badge_extra_price");const{getSelectedCustomPtav}=require("@sale/js/sale_utils");const ProductTemplateAttributeLine=__exports.ProductTemplateAttributeLine=class ProductTemplateAttributeLine extends Component{static components={BadgeExtraPrice};static template="sale.ProductTemplateAttributeLine";static props={productTmplId:Number,id:Number,attribute:{type:Object,shape:{id:Number,name:String,display_type:{type:String,validate:type=>["color","multi","pills","radio","select","image"].includes(type),},},},attribute_values:{type:Array,element:{type:Object,shape:{id:Number,name:String,html_color:[Boolean,String],image:[Boolean,String],is_custom:Boolean,price_extra:Number,excluded:{type:Boolean,optional:true},},},},selected_attribute_value_ids:{type:Array,element:Number},create_variant:{type:String,validate:type=>["always","dynamic","no_variant"].includes(type),},customValue:{type:[{value:false},String],optional:true},show_extra_price:{type:Boolean},};updateSelectedPTAV(event){this.env.updateProductTemplateSelectedPTAV(this.props.productTmplId,this.props.id,event.target.value,this.props.attribute.display_type=='multi');}
+updateCustomValue(event){this.env.updatePTAVCustomValue(this.props.productTmplId,this.props.selected_attribute_value_ids[0],event.target.value);}
+getPTAVTemplate(){switch(this.props.attribute.display_type){case'select':return'sale.ptav_select';case'radio':return'sale.ptav_radio';case'pills':return'sale.ptav_pills';case'color':return'sale.ptav_color';case'multi':return'sale.ptav_multi';case'image':return'sale.ptav_image';}}
+getPTAVSelectName(ptav){if(ptav.price_extra){const sign=ptav.price_extra>0?'+':'-';const price=formatCurrency(Math.abs(ptav.price_extra),this.env.currency.id);return ptav.name+" ("+sign+" "+price+")";}else{return ptav.name;}}
+isSelectedPTAVCustom(){return!!getSelectedCustomPtav(this.props);}
+get showValuesChoice(){return(this.env.canChangeVariant||this.props.create_variant==='no_variant')&&(this.props.attribute_values.length>1||this.props.attribute.display_type==='multi')}
+get customValuePlaceholder(){return _t("Enter a customized value");}
+hasPTAVCustom(){return this.props.attribute_values.some(ptav=>ptav.is_custom);}}
+return __exports;});;
+
+/* /sale/static/src/js/quantity_buttons/quantity_buttons.js */
+odoo.define('@sale/js/quantity_buttons/quantity_buttons',['@odoo/owl'],function(require){'use strict';let __exports={};const{Component}=require('@odoo/owl');const QuantityButtons=__exports.QuantityButtons=class QuantityButtons extends Component{static template='sale.QuantityButtons';static props={quantity:Number,setQuantity:Function,isMinusButtonDisabled:{type:Boolean,optional:true},isPlusButtonDisabled:{type:Boolean,optional:true},btnClasses:{type:String,optional:true},};increaseQuantity(){this.props.setQuantity(this.props.quantity+1);}
+decreaseQuantity(){this.props.setQuantity(this.props.quantity-1);}
+async setQuantity(event){const quantity=parseFloat(event.target.value);const didUpdateQuantity=await this.props.setQuantity(isNaN(quantity)?0:quantity);if(!didUpdateQuantity){this.render();}}}
+return __exports;});;
+
+/* /sale/static/src/js/sale_order_line_field/sale_order_line_field.js */
+odoo.define('@sale/js/sale_order_line_field/sale_order_line_field',['@account/components/product_label_section_and_note_field/product_label_section_and_note_field_o2m','@account/components/section_and_note_fields_backend/section_and_note_fields_backend','@odoo/owl','@web/core/registry','@web/views/fields/char/char_field'],function(require){'use strict';let __exports={};const{ProductLabelSectionAndNoteListRender,productLabelSectionAndNoteOne2Many,ProductLabelSectionAndNoteOne2Many,}=require('@account/components/product_label_section_and_note_field/product_label_section_and_note_field_o2m');const{listSectionAndNoteText,ListSectionAndNoteText,sectionAndNoteFieldOne2Many,sectionAndNoteText,SectionAndNoteText,}=require('@account/components/section_and_note_fields_backend/section_and_note_fields_backend');const{useSubEnv}=require('@odoo/owl');const{registry}=require('@web/core/registry');const{CharField}=require('@web/views/fields/char/char_field');function getComboRecords(listRecords,record){const comboRecords=[];if(record.data.product_type==='combo'){comboRecords.push(record);let index=listRecords.indexOf(record)+1;while(index<listRecords.length){const r=listRecords[index];if(!r.data.combo_item_id?.id||(r.data.linked_line_id?.id!==record.resId&&r.data.linked_virtual_id!==record.data.virtual_id)){break;}
+comboRecords.push(r);index++;}}else if(record.data.combo_item_id?.id){let index=listRecords.indexOf(record);while(index>=0){const r=listRecords[index];comboRecords.unshift(r);if(r.data.product_type==='combo'&&(r.resId===record.data.linked_line_id?.id||r.data.virtual_id===record.data.linked_virtual_id)){break;}
+index--;}}
+return comboRecords;}
+const SaleOrderLineListRenderer=__exports.SaleOrderLineListRenderer=class SaleOrderLineListRenderer extends ProductLabelSectionAndNoteListRender{static recordRowTemplate='sale.ListRenderer.RecordRow';setup(){super.setup();this.priceColumns.push('discount');useSubEnv({shouldCollapse:this.shouldCollapse.bind(this),});}
+get comboColumns(){return[this.titleField,...this.props.aggregatedFields,'product_uom_qty','discount'];}
+getCellTitle(column,record){if(column.name==='product_id'||column.name==='product_template_id'){return;}
+return super.getCellTitle(column,record);}
+getActiveColumns(){let activeColumns=super.getActiveColumns();let productTmplCol=activeColumns.find((col)=>col.name==='product_template_id');let productCol=activeColumns.find((col)=>col.name==='product_id');if(productCol&&productTmplCol){activeColumns=activeColumns.filter((col)=>col.name!='product_template_id')}
+return activeColumns;}
+getRowClass(record){let classNames=super.getRowClass(record);if(this.isCombo(record)||this.isComboItem(record)){classNames=classNames.replace('o_row_draggable','');}
+return`${classNames} ${this.isCombo(record) ? 'o_is_line_section o_is_line_section_no_indent' : ''}`;}
+isCellReadonly(column,record){return super.isCellReadonly(column,record)||(this.isComboItem(record)&&!['name','tax_ids','qty_delivered'].includes(column.name));}
+async onDeleteRecord(record){if(this.isCombo(record)){await record.update({selected_combo_items:JSON.stringify([])});}
+await super.onDeleteRecord(record);}
+async moveCombo(record,direction){const canProceed=await this.props.list.leaveEditMode({canAbandon:false});if(!canProceed)return;const{movingRecords,targetRecords}=this.getComboSwapPairs(record,direction);return this.swapSections(movingRecords,targetRecords);}
+getComboSwapPairs(record,direction){const comboRecords=getComboRecords(this.props.list.records,record);if(direction==='up'){return{movingRecords:this.getPreviousRecords(record),targetRecords:comboRecords,};}
+if(direction==='down'){return{movingRecords:comboRecords,targetRecords:this.getNextRecords(record),};}
+return{movingRecords:[],targetRecords:[]};}
+getPreviousRecords(record){const{records}=this.props.list;const previousRecord=records[records.indexOf(record)-1];if(previousRecord?.data.combo_item_id?.id){return getComboRecords(records,previousRecord);}
+return previousRecord?[previousRecord]:false;}
+getNextRecords(record){const{records}=this.props.list;const comboRecords=getComboRecords(records,record);const nextRecord=records[records.indexOf(record)+comboRecords.length];if(nextRecord?.data.product_type==='combo'){return getComboRecords(records,nextRecord);}
+return nextRecord?[nextRecord]:false;}
+canUseFormatter(column,record){if(this.isCombo(record)&&this.props.aggregatedFields.includes(column.name)){return true;}
+return super.canUseFormatter(column,record);}
+getFormattedValue(column,record){if(this.isCombo(record)&&this.props.aggregatedFields.includes(column.name)){const total=getComboRecords(this.props.list.records,record).reduce((total,record)=>total+record.data[column.name],0);const formatter=registry.category('formatters').get(column.fieldType,(val)=>val);return formatter(total,{...formatter.extractOptions?.(column),data:record.data,field:record.fields[column.name],});}
+return super.getFormattedValue(column,record);}
+isCombo(record){return record.data.product_type==='combo';}
+isComboItem(record){return!!record.data.combo_item_id;}
+shouldDuplicateSectionItem(record){return!this.isCombo(record)&&!this.isComboItem(record);}
+displayDeleteIcon(record){return super.displayDeleteIcon(record)&&!this.isComboItem(record);}}
+const SaleOrderLineOne2Many=__exports.SaleOrderLineOne2Many=class SaleOrderLineOne2Many extends ProductLabelSectionAndNoteOne2Many{static components={...ProductLabelSectionAndNoteOne2Many.components,ListRenderer:SaleOrderLineListRenderer,};}
+const saleOrderLineOne2Many=__exports.saleOrderLineOne2Many={...productLabelSectionAndNoteOne2Many,component:SaleOrderLineOne2Many,additionalClasses:sectionAndNoteFieldOne2Many.additionalClasses,};registry.category('fields').add('sol_o2m',saleOrderLineOne2Many);const SaleOrderLineText=__exports.SaleOrderLineText=class SaleOrderLineText extends SectionAndNoteText{get componentToUse(){return this.props.record.data.product_type==='combo'?CharField:super.componentToUse;}}
+const ListSaleOrderLineText=__exports.ListSaleOrderLineText=class ListSaleOrderLineText extends ListSectionAndNoteText{get componentToUse(){return this.props.record.data.product_type==='combo'?CharField:super.componentToUse;}}
+const saleOrderLineText=__exports.saleOrderLineText={...sectionAndNoteText,component:SaleOrderLineText,};const listSaleOrderLineText=__exports.listSaleOrderLineText={...listSectionAndNoteText,component:ListSaleOrderLineText,};registry.category('fields').add('sol_text',saleOrderLineText);registry.category('fields').add('list.sol_text',listSaleOrderLineText);return __exports;});;
+
+/* /sale/static/src/js/sale_progressbar_field.js */
+odoo.define('@sale/js/sale_progressbar_field',['@odoo/owl','@web/core/registry','@web/core/utils/hooks','@web/views/fields/progress_bar/kanban_progress_bar_field'],function(require){'use strict';let __exports={};const{useEffect}=require("@odoo/owl");const{registry}=require("@web/core/registry");const{useService}=require("@web/core/utils/hooks");const{KanbanProgressBarField,kanbanProgressBarField,}=require("@web/views/fields/progress_bar/kanban_progress_bar_field");const SaleProgressBarField=__exports.SaleProgressBarField=class SaleProgressBarField extends KanbanProgressBarField{static template="sale.SaleProgressBarField";setup(){super.setup();this.actionService=useService("action");this.orm=useService("orm");useEffect(()=>{this.state.isInvoicingTargetDefined=this.props.record.data[this.props.maxValueField];});}
+async defineInvoicingTarget(){const{resId,resModel}=this.props.record;const action=await this.orm.call(resModel,"get_formview_action",[[resId]]);this.actionService.doAction(action);}}
+const saleProgressBarField=__exports.saleProgressBarField={...kanbanProgressBarField,component:SaleProgressBarField,};registry.category("fields").add("sales_team_progressbar",saleProgressBarField);return __exports;});;
+
+/* /sale/static/src/js/tours/sale.js */
+odoo.define('@sale/js/tours/sale',['@odoo/owl','@web/core/l10n/translation','@web/core/registry','@web_tour/tour_utils'],function(require){'use strict';let __exports={};const{markup}=require("@odoo/owl");const{appTranslateFn}=require("@web/core/l10n/translation");const _t=(str,...args)=>appTranslateFn(str,"sale",...args);const{registry}=require("@web/core/registry");const{stepUtils}=require("@web_tour/tour_utils");registry.category("web_tour.tours").add("sale_tour",{url:"/odoo",steps:()=>[stepUtils.showAppsMenuItem(),{isActive:["community"],trigger:".o_app[data-menu-xmlid='sale.sale_menu_root']",content:_t("Let’s create a beautiful quotation in a few clicks ."),tooltipPosition:"right",run:"click",},{isActive:["enterprise"],trigger:".o_app[data-menu-xmlid='sale.sale_menu_root']",content:_t("Let’s create a beautiful quotation in a few clicks ."),tooltipPosition:"bottom",run:"click",},{trigger:".o_sale_order",},{trigger:"button.o_list_button_add",content:_t("Build your first quotation right here!"),tooltipPosition:"bottom",run:"click",},{trigger:".o_sale_order",},{trigger:".o_field_res_partner_many2one[name='partner_id'] input",content:_t("Search a customer name, or create one on the fly."),tooltipPosition:"right",run:"edit Agrolait",},{isActive:["auto"],trigger:".ui-menu-item > a:contains('Agrolait')",run:"click",},{trigger:".o_field_x2many_list_row_add > a",content:_t("Click here to add some products or services to your quotation."),tooltipPosition:"bottom",run:"click",},{trigger:".o_sale_order",},{trigger:`
+                .o_field_widget[name='product_id'] input,
+                .o_field_widget[name='product_template_id'] input
+            `,content:_t("Select a product, or create a new one on the fly."),tooltipPosition:"right",run:"edit DESK0001",},{isActive:["auto"],trigger:"a:contains('DESK0001')",run:"click",},{trigger:".oi-arrow-right",},{trigger:".o_field_widget[name='price_unit'] input",content:_t("add the price of your product."),tooltipPosition:"right",run:"edit 10.0 && click body",},{isActive:["auto"],trigger:".o_field_cell[name='price_subtotal']:contains(10.00)",run:"click",},{isActive:["auto","mobile"],trigger:".o_statusbar_buttons button[name='action_quotation_send']",},...stepUtils.statusbarButtonsSteps("Send",markup(_t("<b>Send the quote</b> to yourself and check what the customer will receive.")),),{isActive:["body:not(:has(.modal-footer button.o_mail_send))"],trigger:".modal-footer button[name='document_layout_save']",content:_t("let's continue"),tooltipPosition:"bottom",run:"click",},{trigger:".modal-footer button.o_mail_send",content:_t("Go ahead and send the quotation."),tooltipPosition:"bottom",run:"click",},{isActive:["auto"],trigger:"body:not(.modal-open)",run:"click",},],});return __exports;});;
+
+/* /sale/static/src/js/upload_rfq_cog_menu/upload_rfq_cog_menu.js */
+odoo.define('@sale/js/upload_rfq_cog_menu/upload_rfq_cog_menu',['@web/core/registry','@web/core/utils/strings','@account/components/document_file_uploader/document_file_uploader'],function(require){'use strict';let __exports={};const{registry}=require('@web/core/registry');const{exprToBoolean}=require("@web/core/utils/strings");const{DocumentFileUploader}=require('@account/components/document_file_uploader/document_file_uploader');const cogMenuRegistry=registry.category('cogMenu');const QuotationRequestUploader=__exports.QuotationRequestUploader=class QuotationRequestUploader extends DocumentFileUploader{static template='upload_rfq_cog_menu.QuotationRequestUploader';getResModel(){return'sale.order';}}
+const quotationUploaderMenuItem=__exports.quotationUploaderMenuItem={Component:QuotationRequestUploader,groupNumber:0,isDisplayed:({config,searchModel})=>searchModel.resModel==='sale.order'&&['list','kanban'].includes(config.viewType)&&exprToBoolean(config.viewArch.getAttribute('create'),true),};cogMenuRegistry.add('quotation-upload-menu',quotationUploaderMenuItem);return __exports;});;
+
+/* /sale/static/src/js/sale_product_field.js */
+odoo.define('@sale/js/sale_product_field',['@account/components/product_label_section_and_note_field/product_label_section_and_note_field','@odoo/owl','@web/core/l10n/dates','@web/core/l10n/translation','@web/core/network/rpc','@web/core/orm_service','@web/core/registry','@web/core/utils/hooks','@web/core/utils/strings','@sale/js/combo_configurator_dialog/combo_configurator_dialog','@sale/js/models/product_combo','@sale/js/product_configurator_dialog/product_configurator_dialog','@sale/js/sale_utils'],function(require){'use strict';let __exports={};const{ProductLabelSectionAndNoteField,productLabelSectionAndNoteField,}=require("@account/components/product_label_section_and_note_field/product_label_section_and_note_field");const{useEffect}=require("@odoo/owl");const{serializeDateTime}=require("@web/core/l10n/dates");const{appTranslateFn}=require("@web/core/l10n/translation");const _t=(str,...args)=>appTranslateFn(str,"sale",...args);const{rpc}=require("@web/core/network/rpc");const{x2ManyCommands}=require("@web/core/orm_service");const{registry}=require("@web/core/registry");const{useService}=require("@web/core/utils/hooks");const{uuid}=require("@web/core/utils/strings");const{ComboConfiguratorDialog}=require("@sale/js/combo_configurator_dialog/combo_configurator_dialog");const{ProductCombo}=require("@sale/js/models/product_combo");const{ProductConfiguratorDialog}=require("@sale/js/product_configurator_dialog/product_configurator_dialog");const{getLinkedSaleOrderLines,serializeComboItem,getSelectedCustomPtav}=require("@sale/js/sale_utils");async function applyProduct(record,product){const customAttributesCommands=[x2ManyCommands.set([]),];for(const ptal of product.attribute_lines){const selectedCustomPTAV=getSelectedCustomPtav(ptal);if(selectedCustomPTAV){customAttributesCommands.push(x2ManyCommands.create(undefined,{custom_product_template_attribute_value_id:[selectedCustomPTAV.id,"we don't care",],custom_value:ptal.customValue,}));}}
+const noVariantPTAVIds=product.attribute_lines.filter((ptal)=>ptal.create_variant==="no_variant").flatMap((ptal)=>ptal.selected_attribute_value_ids);const update_values={product_id:{id:product.id,display_name:product.display_name},product_uom_qty:product.quantity,product_no_variant_attribute_value_ids:[x2ManyCommands.set(noVariantPTAVIds)],product_custom_attribute_value_ids:customAttributesCommands,}
+if(product.uom){update_values.product_uom_id=product.uom;}
+if(product.product_type==="combo"&&product.selectedComboItems?.length){update_values.selected_combo_items=JSON.stringify(product.selectedComboItems.map(serializeComboItem));update_values.virtual_id=product.virtual_id||uuid();}
+await record._update(update_values);}
+const SaleOrderLineProductField=__exports.SaleOrderLineProductField=class SaleOrderLineProductField extends ProductLabelSectionAndNoteField{static template="sale.SaleProductField";static props={...super.props,readonlyField:{type:Boolean,optional:true},};setup(){super.setup();this.dialog=useService("dialog");this.notification=useService("notification");this.orm=useService("orm");this.isInternalUpdate=false;this.wasCombo=false;let isMounted=false;useEffect(value=>{if(!isMounted){isMounted=true;}else if(value&&this.isInternalUpdate){if(this.wasCombo){this.props.record.update({selected_combo_items:JSON.stringify([])});}
+if(this.relation==="product.template"||this.isCombo){this._onProductTemplateUpdate();}else{this._onProductUpdate();}}
+this.isInternalUpdate=false;},()=>[this.value&&this.value.id]);}
+get productName(){if(this.props.name=='product_template_id'){const product_id_data=this.props.record.data.product_id;if(product_id_data&&product_id_data.display_name){return product_id_data.display_name.split("\n")[0];}}
+return super.productName;}
+get isProductClickable(){return(this.props.readonlyField||(this.props.record.model.root.activeFields.order_line&&this.props.record.model.root._isReadonly("order_line")));}
+get hasConfigurationButton(){return this.isConfigurableTemplate||this.isCombo;}
+get isConfigurableTemplate(){return this.props.record.data.is_configurable_product;}
+get isCombo(){return this.props.record.data.product_template_id&&this.props.record.data.product_type==='combo';}
+get isDownpayment(){return this.props.record.data.is_downpayment;}
+get configurationButtonHelp(){return _t("Edit Configuration");}
+get sectionAndNoteClasses(){return{...super.sectionAndNoteClasses,"text-warning":!this.isSectionOrSubSection&&!this.isNote()&&!this.productName&&!this.isDownpayment,};}
+get label(){let label=this.props.record.data.name;if(this.translatedProductName&&label.startsWith(this.translatedProductName)){label=label.slice(this.translatedProductName.length+1);}else{label=super.label;}
+return label;}
+get translatedProductName(){return this.props.record.data.translated_product_name;}
+parseLabel(value){if(!this.translatedProductName){return super.parseLabel(value);}
+return value&&this.translatedProductName.concat("\n",value)||this.translatedProductName;}
+get m2oProps(){const p=super.m2oProps;const value=p.value&&{...p.value};if(this.isCombo&&value&&value.display_name){value.display_name=`${value.display_name} x ${this.props.record.data.product_uom_qty}`;}
+return{...p,canOpen:this.props.canOpen&&(!this.props.readonly||this.isProductClickable),update:(value)=>{this.isInternalUpdate=true;this.wasCombo=this.isCombo;return p.update(value);},value,};}
+get relation(){return this.props.record.fields[this.props.name].relation;}
+get value(){return this.props.record.data[this.props.name];}
+async _onProductTemplateUpdate(){const result=await this.orm.call('product.template','get_single_product_variant',[this.props.record.data.product_template_id.id],{context:this.context,});if(result&&result.product_id){if(this.props.record.data.product_id!=result.product_id.id){if(result.is_combo){await this.props.record.update({product_id:{id:result.product_id,display_name:result.product_name},});this._openComboConfigurator(false,result.has_optional_products);}else if(result.has_optional_products){this._openProductConfigurator();}else{await this.props.record.update({product_id:{id:result.product_id,display_name:result.product_name},});this._onProductUpdate();}}}else if(!result.mode||result.mode==='configurator'){this._openProductConfigurator();}else{this._openGridConfigurator();}}
+_openGridConfigurator(edit=false){}
+async _onProductUpdate(){}
+onEditConfiguration(){if(this.isCombo){this._openComboConfigurator(true);}else if(this.isConfigurableTemplate){this._openProductConfigurator(true);}}
+async _openProductConfigurator(edit=false,selectedComboItems=[]){const saleOrderRecord=this.props.record.model.root;const saleOrderLine=this.props.record.data;const ptavIds=[...this._getVariantPtavIds(saleOrderLine)];let customPtavs=[];if(edit){ptavIds.push(...this._getNoVariantPtavIds(saleOrderLine));customPtavs=await this._getCustomPtavs(saleOrderLine);}
+this.dialog.add(ProductConfiguratorDialog,{productTemplateId:saleOrderLine.product_template_id.id,ptavIds:ptavIds,customPtavs:customPtavs,quantity:saleOrderLine.product_uom_qty,productUOMId:saleOrderLine.product_uom_id.id,companyId:saleOrderRecord.data.company_id.id,pricelistId:saleOrderRecord.data.pricelist_id.id,currencyId:saleOrderLine.currency_id.id,soDate:serializeDateTime(saleOrderRecord.data.date_order),selectedComboItems:selectedComboItems,edit:edit,save:async(mainProduct,optionalProducts)=>{const proms=!selectedComboItems.length?[applyProduct(this.props.record,mainProduct)]:[];for(const[i,product]of optionalProducts.entries()){const index=saleOrderRecord.data.order_line.records.indexOf(this.props.record)
++selectedComboItems.length
++i;const line=await saleOrderRecord.data.order_line.addNewRecordAtIndex(index,{mode:'readonly',});const productData=this._prepareNewLineData(line,product);proms.push(applyProduct(line,productData));}
+await Promise.all(proms);this._onProductUpdate();saleOrderRecord.data.order_line.leaveEditMode();},discard:()=>{if(!selectedComboItems.length){saleOrderRecord.data.order_line.delete(this.props.record);}},...this._getAdditionalDialogProps(),});}
+async _openComboConfigurator(edit=false,hasOptionalProducts=false){const saleOrder=this.props.record.model.root.data;const comboLineRecord=this.props.record;const comboItemLineRecords=getLinkedSaleOrderLines(comboLineRecord).filter(record=>!!record.data.combo_item_id);const selectedComboItems=await Promise.all(comboItemLineRecords.map(async record=>({id:record.data.combo_item_id.id,no_variant_ptav_ids:edit?this._getNoVariantPtavIds(record.data):[],custom_ptavs:edit?await this._getCustomPtavs(record.data):[],})));const{combos,...remainingData}=await rpc('/sale/combo_configurator/get_data',{product_tmpl_id:comboLineRecord.data.product_template_id.id,currency_id:comboLineRecord.data.currency_id.id,quantity:comboLineRecord.data.product_uom_qty,date:serializeDateTime(saleOrder.date_order),company_id:saleOrder.company_id.id,pricelist_id:saleOrder.pricelist_id.id,selected_combo_items:selectedComboItems,...this._getAdditionalRpcParams(),});const comboChoices=combos.map(combo=>new ProductCombo(combo));const preselectedComboItems=comboChoices.map(combo=>combo.preselectedComboItem).filter(Boolean);if(preselectedComboItems.length===comboChoices.length){return this.handleComboSave({'quantity':remainingData.quantity},preselectedComboItems,edit,hasOptionalProducts);}
+this.dialog.add(ComboConfiguratorDialog,{combos:comboChoices,...remainingData,company_id:saleOrder.company_id.id,pricelist_id:saleOrder.pricelist_id.id,date:serializeDateTime(saleOrder.date_order),edit:edit,save:async(comboProductData,selectedComboItems)=>{this.handleComboSave(comboProductData,selectedComboItems,edit,hasOptionalProducts);},discard:()=>saleOrder.order_line.delete(comboLineRecord),...this._getAdditionalDialogProps(),});}
+async handleComboSave(comboProductData,selectedComboItems,edit,hasOptionalProducts){const saleOrder=this.props.record.model.root.data;const comboLineRecord=this.props.record;saleOrder.order_line.leaveEditMode();const comboLineValues={product_uom_qty:comboProductData.quantity,selected_combo_items:JSON.stringify(selectedComboItems.map(serializeComboItem)),};if(!edit){comboLineValues.virtual_id=uuid();}
+await comboLineRecord.update(comboLineValues);await saleOrder.order_line._sort();if(hasOptionalProducts&&!edit){await this._openProductConfigurator(false,selectedComboItems);}}
+_getAdditionalRpcParams(){return{};}
+_getAdditionalDialogProps(){return{};}
+_prepareNewLineData(_line,product){return product;}
+_getVariantPtavIds(saleOrderLine){return saleOrderLine.product_template_attribute_value_ids.currentIds;}
+_getNoVariantPtavIds(saleOrderLine){return saleOrderLine.product_no_variant_attribute_value_ids.currentIds;}
+async _getCustomPtavs(saleOrderLine){const customPtavIds=saleOrderLine.product_custom_attribute_value_ids;let customPtavs=[];if(customPtavIds.records[0]?.isNew){customPtavs=customPtavIds.records.map(record=>record.data);}else if(customPtavIds.currentIds.length){const specification={custom_product_template_attribute_value_id:{fields:{id:{}},},custom_value:{},};customPtavs=await this.orm.webRead('product.attribute.custom.value',customPtavIds.currentIds,{specification},);}
+return customPtavs.map(customPtav=>({id:customPtav.custom_product_template_attribute_value_id&&customPtav.custom_product_template_attribute_value_id.id,value:customPtav.custom_value,}));}}
+const saleOrderLineProductField=__exports.saleOrderLineProductField={...productLabelSectionAndNoteField,component:SaleOrderLineProductField,extractProps(fieldInfo,dynamicInfo){return{...productLabelSectionAndNoteField.extractProps(fieldInfo,dynamicInfo),readonlyField:dynamicInfo.readonly,};},fieldDependencies:[{name:'is_configurable_product',type:'boolean'},{name:'product_type',type:'selection'},{name:'service_tracking',type:'selection'},{name:'product_template_attribute_value_ids',type:'many2many'},{name:'translated_product_name',type:'char'},],};registry.category("fields").add("sol_product_many2one",saleOrderLineProductField);return __exports;});;
+
+/* /sale/static/src/js/sale_utils.js */
+odoo.define('@sale/js/sale_utils',[],function(require){'use strict';let __exports={};__exports.areSaleOrderLinesLinked=areSaleOrderLinesLinked;function areSaleOrderLinesLinked(linkingSaleOrderLine,linkedSaleOrderLine){const linkingId=linkedSaleOrderLine.isNew?linkingSaleOrderLine.data.linked_virtual_id:linkingSaleOrderLine.data.linked_line_id.id;const linkedId=linkedSaleOrderLine.isNew?linkedSaleOrderLine.data.virtual_id:linkedSaleOrderLine.resId;return linkingId&&linkingId===linkedId;}
+__exports.getLinkedSaleOrderLines=getLinkedSaleOrderLines;function getLinkedSaleOrderLines(saleOrderLine){const saleOrder=saleOrderLine.model.root;return saleOrder.data.order_line.records.filter(record=>areSaleOrderLinesLinked(record,saleOrderLine));}
+__exports.serializeComboItem=serializeComboItem;function serializeComboItem(comboItem){return{combo_item_id:comboItem.id,product_id:comboItem.product.id,no_variant_attribute_value_ids:comboItem.product.selectedNoVariantPtavIds,product_custom_attribute_values:comboItem.product.selectedCustomPtavs.map(customPtav=>({custom_product_template_attribute_value_id:customPtav.id,custom_value:customPtav.value,})),}}
+__exports.getSelectedCustomPtav=getSelectedCustomPtav;function getSelectedCustomPtav(ptal){const selectedPtavIds=new Set(ptal.selected_attribute_value_ids);return ptal.attribute_values.find(ptav=>ptav.is_custom&&selectedPtavIds.has(ptav.id));}
+return __exports;});;
+
+/* /sale/static/src/views/sale_file_upload_kanban/sale_file_upload_kanban_controller.js */
+odoo.define('@sale/views/sale_file_upload_kanban/sale_file_upload_kanban_controller',['@account/views/file_upload_kanban/file_upload_kanban_controller'],function(require){'use strict';let __exports={};const{FileUploadKanbanController}=require('@account/views/file_upload_kanban/file_upload_kanban_controller');const SaleFileUploadKanbanController=__exports.SaleFileUploadKanbanController=class SaleFileUploadKanbanController extends FileUploadKanbanController{setup(){super.setup();this.hideUploadButton=true;}};return __exports;});;
+
+/* /sale/static/src/views/sale_file_upload_kanban/sale_file_upload_kanban_renderer.js */
+odoo.define('@sale/views/sale_file_upload_kanban/sale_file_upload_kanban_renderer',['@web/core/l10n/translation','@account/views/file_upload_kanban/file_upload_kanban_renderer'],function(require){'use strict';let __exports={};const{_t}=require('@web/core/l10n/translation');const{FileUploadKanbanRenderer}=require('@account/views/file_upload_kanban/file_upload_kanban_renderer');const SaleFileUploadKanbanRenderer=__exports.SaleFileUploadKanbanRenderer=class SaleFileUploadKanbanRenderer extends FileUploadKanbanRenderer{setup(){super.setup();this.dropZoneTitle=_t("Import a request for quotation from a customer");this.dropZoneDescription=_t(`
+            If your customer runs on Odoo 18 or higher, customer data and sales order lines
+            will be automatically created. Any other pdf containing an attached
+            UBL-RequestForQuotation file will work as well.
+        `);}}
+return __exports;});;
+
+/* /sale/static/src/views/sale_file_upload_kanban/sale_file_upload_kanban_view.js */
+odoo.define('@sale/views/sale_file_upload_kanban/sale_file_upload_kanban_view',['@web/core/registry','@account/views/file_upload_kanban/file_upload_kanban_view','@sale/views/sale_file_upload_kanban/sale_file_upload_kanban_controller','@sale/views/sale_file_upload_kanban/sale_file_upload_kanban_renderer'],function(require){'use strict';let __exports={};const{registry}=require('@web/core/registry');const{fileUploadKanbanView}=require('@account/views/file_upload_kanban/file_upload_kanban_view');const{SaleFileUploadKanbanController}=require("@sale/views/sale_file_upload_kanban/sale_file_upload_kanban_controller");const{SaleFileUploadKanbanRenderer}=require("@sale/views/sale_file_upload_kanban/sale_file_upload_kanban_renderer");const saleFileUploadKanbanView=__exports.saleFileUploadKanbanView={...fileUploadKanbanView,Controller:SaleFileUploadKanbanController,Renderer:SaleFileUploadKanbanRenderer,};registry.category('views').add('sale_file_upload_kanban',saleFileUploadKanbanView);return __exports;});;
+
+/* /sale/static/src/views/sale_file_upload_list/sale_file_upload_list_controller.js */
+odoo.define('@sale/views/sale_file_upload_list/sale_file_upload_list_controller',['@account/views/file_upload_list/file_upload_list_controller'],function(require){'use strict';let __exports={};const{FileUploadListController}=require('@account/views/file_upload_list/file_upload_list_controller');const SaleFileUploadListController=__exports.SaleFileUploadListController=class SaleFileUploadListController extends FileUploadListController{setup(){super.setup();this.hideUploadButton=true;}};return __exports;});;
+
+/* /sale/static/src/views/sale_file_upload_list/sale_file_upload_list_renderer.js */
+odoo.define('@sale/views/sale_file_upload_list/sale_file_upload_list_renderer',['@web/core/l10n/translation','@account/views/file_upload_list/file_upload_list_renderer'],function(require){'use strict';let __exports={};const{_t}=require('@web/core/l10n/translation');const{FileUploadListRenderer}=require('@account/views/file_upload_list/file_upload_list_renderer');const SaleFileUploadListRenderer=__exports.SaleFileUploadListRenderer=class SaleFileUploadListRenderer extends FileUploadListRenderer{setup(){super.setup();this.dropZoneTitle=_t("Import a request for quotation from a customer");this.dropZoneDescription=_t(`
+            If your customer runs on Odoo 18 or higher, customer data and sales order lines
+            will be automatically created. Any other pdf containing an attached
+            UBL-RequestForQuotation file will work as well.
+        `);}}
+return __exports;});;
+
+/* /sale/static/src/views/sale_file_upload_list/sale_file_upload_list_view.js */
+odoo.define('@sale/views/sale_file_upload_list/sale_file_upload_list_view',['@web/core/registry','@account/views/file_upload_list/file_upload_list_view','@sale/views/sale_file_upload_list/sale_file_upload_list_controller','@sale/views/sale_file_upload_list/sale_file_upload_list_renderer'],function(require){'use strict';let __exports={};const{registry}=require('@web/core/registry');const{fileUploadListView}=require('@account/views/file_upload_list/file_upload_list_view');const{SaleFileUploadListController}=require("@sale/views/sale_file_upload_list/sale_file_upload_list_controller");const{SaleFileUploadListRenderer}=require("@sale/views/sale_file_upload_list/sale_file_upload_list_renderer");const saleFileUploadListView=__exports.saleFileUploadListView={...fileUploadListView,Controller:SaleFileUploadListController,Renderer:SaleFileUploadListRenderer,};registry.category('views').add('sale_file_upload_list',saleFileUploadListView);return __exports;});;
+
+/* /sale/static/src/views/sale_onboarding_kanban/sale_onboarding_kanban_renderer.js */
+odoo.define('@sale/views/sale_onboarding_kanban/sale_onboarding_kanban_renderer',['@sale/views/sale_file_upload_kanban/sale_file_upload_kanban_renderer','@sale/js/sale_action_helper/sale_action_helper'],function(require){'use strict';let __exports={};const{SaleFileUploadKanbanRenderer}=require("@sale/views/sale_file_upload_kanban/sale_file_upload_kanban_renderer");const{SaleActionHelper}=require("@sale/js/sale_action_helper/sale_action_helper");const SaleKanbanRenderer=__exports.SaleKanbanRenderer=class SaleKanbanRenderer extends SaleFileUploadKanbanRenderer{static template="sale.SaleKanbanRenderer";static components={...SaleFileUploadKanbanRenderer.components,SaleActionHelper,};};return __exports;});;
+
+/* /sale/static/src/views/sale_onboarding_kanban/sale_onboarding_kanban_view.js */
+odoo.define('@sale/views/sale_onboarding_kanban/sale_onboarding_kanban_view',['@web/core/registry','@sale/views/sale_file_upload_kanban/sale_file_upload_kanban_view','@sale/views/sale_onboarding_kanban/sale_onboarding_kanban_renderer'],function(require){'use strict';let __exports={};const{registry}=require("@web/core/registry");const{saleFileUploadKanbanView}=require("@sale/views/sale_file_upload_kanban/sale_file_upload_kanban_view");const{SaleKanbanRenderer}=require("@sale/views/sale_onboarding_kanban/sale_onboarding_kanban_renderer");const saleKanbanView=__exports.saleKanbanView={...saleFileUploadKanbanView,Renderer:SaleKanbanRenderer,};registry.category("views").add("sale_onboarding_kanban",saleKanbanView);return __exports;});;
+
+/* /sale/static/src/views/sale_onboarding_list/sale_onboarding_list_renderer.js */
+odoo.define('@sale/views/sale_onboarding_list/sale_onboarding_list_renderer',['@sale/views/sale_file_upload_list/sale_file_upload_list_renderer','@sale/js/sale_action_helper/sale_action_helper'],function(require){'use strict';let __exports={};const{SaleFileUploadListRenderer}=require("@sale/views/sale_file_upload_list/sale_file_upload_list_renderer");const{SaleActionHelper}=require("@sale/js/sale_action_helper/sale_action_helper");const SaleListRenderer=__exports.SaleListRenderer=class SaleListRenderer extends SaleFileUploadListRenderer{static template="sale.SaleListRenderer";static components={...SaleFileUploadListRenderer.components,SaleActionHelper,};};return __exports;});;
+
+/* /sale/static/src/views/sale_onboarding_list/sale_onboarding_list_view.js */
+odoo.define('@sale/views/sale_onboarding_list/sale_onboarding_list_view',['@web/core/registry','@sale/views/sale_file_upload_list/sale_file_upload_list_view','@sale/views/sale_onboarding_list/sale_onboarding_list_renderer'],function(require){'use strict';let __exports={};const{registry}=require("@web/core/registry");const{saleFileUploadListView}=require("@sale/views/sale_file_upload_list/sale_file_upload_list_view");const{SaleListRenderer}=require("@sale/views/sale_onboarding_list/sale_onboarding_list_renderer");const SaleListView=__exports.SaleListView={...saleFileUploadListView,Renderer:SaleListRenderer,};registry.category("views").add("sale_onboarding_list",SaleListView);return __exports;});;
+
+/* /sale_stock/static/src/product_catalog/kanban_record.js */
+odoo.define('@sale_stock/product_catalog/kanban_record',['@product/product_catalog/kanban_record','@sale_stock/product_catalog/sale_order_line/sale_order_line','@web/core/utils/patch'],function(require){'use strict';let __exports={};const{ProductCatalogKanbanRecord}=require("@product/product_catalog/kanban_record");const{ProductCatalogSaleOrderLine}=require("@sale_stock/product_catalog/sale_order_line/sale_order_line");const{patch}=require("@web/core/utils/patch");patch(ProductCatalogKanbanRecord.prototype,{updateQuantity(quantity){if(this.env.orderResModel!=="sale.order"||this.productCatalogData.productType=="service"){super.updateQuantity(...arguments);}else if(this.productCatalogData.quantity===this.productCatalogData.deliveredQty&&quantity<this.productCatalogData.quantity){this.props.record.load();this.props.record.model.notify();}else{super.updateQuantity(Math.max(quantity,this.productCatalogData.deliveredQty));}},get orderLineComponent(){if(this.env.orderResModel==="sale.order"){return ProductCatalogSaleOrderLine;}
+return super.orderLineComponent;},});return __exports;});;
+
+/* /sale_stock/static/src/product_catalog/sale_order_line/sale_order_line.js */
+odoo.define('@sale_stock/product_catalog/sale_order_line/sale_order_line',['@web/core/l10n/translation','@product/product_catalog/order_line/order_line'],function(require){'use strict';let __exports={};const{appTranslateFn}=require("@web/core/l10n/translation");const _t=(str,...args)=>appTranslateFn(str,"sale_stock",...args);const{ProductCatalogOrderLine}=require("@product/product_catalog/order_line/order_line");const ProductCatalogSaleOrderLine=__exports.ProductCatalogSaleOrderLine=class ProductCatalogSaleOrderLine extends ProductCatalogOrderLine{static props={...ProductCatalogOrderLine.props,deliveredQty:Number,}
+get disableRemove(){return this.props.quantity===this.props.deliveredQty;}
+get disabledButtonTooltip(){if(this.disableRemove){return _t("The ordered quantity cannot be decreased below the amount already delivered. Instead, create a return in your inventory.");}
+return super.disabledButtonTooltip;}}
+return __exports;});;
+
+/* /sale_stock/static/src/stock_valuation/stock_valuation_report.js */
+odoo.define('@sale_stock/stock_valuation/stock_valuation_report',['@web/core/l10n/translation','@web/core/utils/patch','@stock_account/stock_valuation/stock_valuation_report'],function(require){'use strict';let __exports={};const{appTranslateFn}=require("@web/core/l10n/translation");const _t=(str,...args)=>appTranslateFn(str,"sale_stock",...args);const{patch}=require("@web/core/utils/patch");const{StockValuationReport}=require("@stock_account/stock_valuation/stock_valuation_report");patch(StockValuationReport.prototype,{get accrual(){const accrual=super.accrual;const notInvoicedDeliveredGoods=this.data.not_invoiced_delivered_goods;notInvoicedDeliveredGoods.display_name=_t("Goods Delivered Not Invoiced");notInvoicedDeliveredGoods.method=this.openSaleOrder.bind(this);notInvoicedDeliveredGoods.index=accrual.lines.length;accrual.value+=notInvoicedDeliveredGoods.value;accrual.lines.push(notInvoicedDeliveredGoods);this.saleOrderIds=notInvoicedDeliveredGoods.lines.map((line)=>line.id);return accrual;},openSaleOrder(line=false){const action={type:"ir.actions.act_window",name:_t("Sale Orders"),res_model:"sale.order",views:[[false,"list"],[false,"form"]],target:"current",}
+if(line?.id){action.views=[[false,"form"]],action.res_id=line.id;}else{action.domain=[["id","in",this.saleOrderIds]];}
+return this.actionService.doAction(action);},});return __exports;});;
+
+/* /sale_stock/static/src/widgets/qty_at_date_widget.js */
+odoo.define('@sale_stock/widgets/qty_at_date_widget',['@web/core/l10n/dates','@web/core/l10n/localization','@web/core/registry','@web/core/utils/hooks','@web/core/popover/popover_hook','@odoo/owl','@web/views/widgets/standard_widget_props','@web/core/utils/numbers','@web/core/l10n/translation'],function(require){'use strict';let __exports={};const{formatDateTime}=require("@web/core/l10n/dates");const{localization}=require("@web/core/l10n/localization");const{registry}=require("@web/core/registry");const{useService}=require("@web/core/utils/hooks");const{usePopover}=require("@web/core/popover/popover_hook");const{Component,onWillRender}=require("@odoo/owl");const{standardWidgetProps}=require("@web/views/widgets/standard_widget_props");const{roundPrecision}=require("@web/core/utils/numbers");const{appTranslateFn}=require("@web/core/l10n/translation");const _t=(str,...args)=>appTranslateFn(str,"sale_stock",...args);const QtyAtDatePopover=__exports.QtyAtDatePopover=class QtyAtDatePopover extends Component{static template="sale_stock.QtyAtDatePopover";static props={record:Object,calcData:Object,close:Function,};setup(){this.actionService=useService("action");}
+openForecast(){this.actionService.doAction("stock.stock_forecasted_product_product_action",{additionalContext:{active_model:'product.product',active_id:this.props.record.data.product_id.id,warehouse_id:this.props.record.data.warehouse_id&&this.props.record.data.warehouse_id.id,move_to_match_ids:this.props.record.data.move_ids.currentIds,sale_line_to_match_id:this.props.record.resId,},});}
+get forecastedLabel(){return _t('Forecasted Stock')}
+get availableLabel(){return _t('Available')}}
+const QtyAtDateWidget=__exports.QtyAtDateWidget=class QtyAtDateWidget extends Component{static components={Popover:QtyAtDatePopover};static template="sale_stock.QtyAtDate";static props={...standardWidgetProps};setup(){this.popover=usePopover(this.constructor.components.Popover,{position:"top"});this.orm=useService("orm");this.calcData={};onWillRender(()=>{this.initCalcData();});}
+initCalcData(){const{data}=this.props.record;if(data.scheduled_date){if(data.state==='sale'){this.calcData.will_be_fulfilled=data.free_qty_today>=data.qty_to_deliver;}else{this.calcData.will_be_fulfilled=data.virtual_available_at_date>=data.qty_to_deliver;}
+this.calcData.will_be_late=data.forecast_expected_date&&data.forecast_expected_date>data.scheduled_date;if(['draft','sent'].includes(data.state)){this.calcData.forecasted_issue=!this.calcData.will_be_fulfilled&&!data.is_mto;}else{this.calcData.forecasted_issue=!this.calcData.will_be_fulfilled||this.calcData.will_be_late;}}}
+async calcDataForDisplay(){const{data}=this.props.record;let lineUom;if(data.product_uom_id?.[0]){lineUom=(await this.orm.read("uom.uom",[data.product_uom_id[0]],["factor","rounding"]))[0];}
+let lineProduct;if(data.product_id?.[0]){lineProduct=await this.orm.searchRead("product.product",[["id","=",data.product_id[0]]],["uom_id"]);}
+let productUom;if(lineProduct?.[0]?.uom_id?.[0]){productUom=(await this.orm.searchRead("uom.uom",[["id","=",lineProduct[0].uom_id[0]]],["factor","name"]))[0];}
+if(lineUom&&productUom){this.calcData.product_uom_virtual_available_at_date=roundPrecision(data.virtual_available_at_date*lineUom.factor/productUom.factor,1);this.calcData.product_uom_free_qty_today=roundPrecision(data.free_qty_today*lineUom.factor/productUom.factor,1);this.calcData.product_uom_name=productUom.name;}}
+updateCalcData(){const{data}=this.props.record;if(!data.scheduled_date){return;}
+this.calcData.delivery_date=formatDateTime(data.scheduled_date,{format:localization.dateFormat});if(data.forecast_expected_date){this.calcData.forecast_expected_date_str=formatDateTime(data.forecast_expected_date,{format:localization.dateFormat});}}
+async showPopup(ev){const target=ev.currentTarget;await this.calcDataForDisplay();this.updateCalcData();this.popover.open(target,{record:this.props.record,calcData:this.calcData,});}}
+const qtyAtDateWidget=__exports.qtyAtDateWidget={component:QtyAtDateWidget,fieldDependencies:[{name:'display_qty_widget',type:'boolean'},{name:'free_qty_today',type:'float'},{name:'forecast_expected_date',type:'datetime'},{name:'is_mto',type:'boolean'},{name:'move_ids',type:'one2many'},{name:'qty_available_today',type:'float'},{name:'qty_to_deliver',type:'float'},{name:'scheduled_date',type:'datetime'},{name:'virtual_available_at_date',type:'float'},{name:'warehouse_id',type:'many2one'},],};registry.category("view_widgets").add("qty_at_date_widget",qtyAtDateWidget);return __exports;});;
 
 /* /snailmail/static/src/core/failure_model_patch.js */
 odoo.define('@snailmail/core/failure_model_patch',['@mail/core/common/failure_model','@web/core/l10n/translation','@web/core/utils/patch'],function(require){'use strict';let __exports={};const{Failure}=require("@mail/core/common/failure_model");const{appTranslateFn}=require("@web/core/l10n/translation");const _t=(str,...args)=>appTranslateFn(str,"snailmail",...args);const{patch}=require("@web/core/utils/patch");patch(Failure.prototype,{get iconSrc(){if(this.type==="snail"){return"/snailmail/static/img/snailmail_failure.png";}
@@ -41921,6 +42405,231 @@ registerTemplate("website.cookies_bar.popup", `/website/static/src/xml/website.c
         </section>
     </t>
 `);
+registerTemplate("purchase.OpenMatchLineWidget", `/purchase/static/src/components/open_match_line_widget/open_match_line_widget.xml`, `<t t-name="purchase.OpenMatchLineWidget" xml:space="preserve">
+        <div t-out="props.record.data[props.name]" t-on-click.prevent.stop="openMatchLine"/>
+    </t>
+
+`);
+registerTemplate("purchase.DocumentFileUploader", `/purchase/static/src/components/purchase_file_uploader/purchase_file_uploader.xml`, `<t t-name="purchase.DocumentFileUploader" xml:space="preserve">
+        <FileUploader acceptedFileExtensions="props.acceptedFileExtensions" fileUploadClass="'document_file_uploader'" multiUpload="true" onClick.bind="onClick" onUploaded.bind="onFileUploaded" onUploadComplete.bind="onUploadComplete">
+            <t t-set-slot="toggler">
+                <button type="button" class="btn btn-secondary" data-hotkey="shift+i">
+                    Upload Bill
+                </button>
+            </t>
+            <t t-slot="default"/>
+        </FileUploader>
+    </t>
+ `);
+registerTemplateExtension("account.TaxTotalsField", `/purchase/static/src/components/tax_totals/tax_totals.xml`, `<t t-inherit="account.TaxTotalsField" t-inherit-mode="extension" owl="1" xml:space="preserve">
+        <xpath expr="//tr[2]" position="after">
+            <tr t-if="totals.amount_total_cc">
+                <td colspan="2">
+                    <span t-out="totals.amount_total_cc" style="font-size: 1.1em;"/>
+                </td>
+            </tr>
+        </xpath>
+    </t>
+`);
+registerTemplate("PurchaseProductCatalogKanbanRenderer", `/purchase/static/src/product_catalog/kanban_renderer.xml`, `<t t-name="PurchaseProductCatalogKanbanRenderer" t-inherit="web.KanbanRenderer" t-inherit-mode="primary" xml:space="preserve">
+        <t t-if="showNoContentHelper" position="replace">
+            <t t-if="showNoContentHelper">
+                <div class="o_view_nocontent" role="alert">
+                    <div class="o_nocontent_help">
+                        <p class="o_view_nocontent_smiling_face">
+                            No Products for the selected Vendor.
+                        </p>
+                        <p>
+                            Try removing the top filter to broaden your search
+                            <br/>
+                            <button class="mt-2 btn btn-primary" t-on-click="this.createProduct">Create a product</button>
+                        </p>
+                    </div>
+                </div>
+            </t>
+        </t>
+    </t>
+`);
+registerTemplate("purchase.ButtonWithNotification", `/purchase/static/src/toaster_button/toaster_button_widget.xml`, `<t t-name="purchase.ButtonWithNotification" xml:space="preserve">
+        <button t-on-click="onClick" t-att-name="props.method" type="button" class="btn oe_inline btn-link" t-att-title="props.title">
+            <i class="fa fa-fw o_button_icon fa-info-circle"/>
+        </button>
+    </t>
+
+`);
+registerTemplate("purchase.PurchaseDashboard", `/purchase/static/src/views/purchase_dashboard.xml`, `<t t-name="purchase.PurchaseDashboard" xml:space="preserve">
+        <div class="o_purchase_dashboard container-fluid py-4 border-bottom bg-view">
+            <div class="row justify-content-between gap-2 gap-lg-0">
+                <div class="col-12 col-lg-8 flex-grow-1 flex-lg-grow-0 flex-shrink-0">
+                    <div class="grid gap-1 gap-lg-4">
+                        <div class="g-col-12 g-col-lg-1 d-flex align-items-center pt-2 pb-lg-2 justify-content-lg-end text-break">
+                            <t t-if="multiuser">All</t>
+                        </div>
+                        <div class="g-col-12 g-col-lg-11 grid gap-1" style="--columns: 61">
+                            <div class="g-col-12 p-0" t-on-click="setSearchContext" title="All Draft RFQs" filter_name="draft_rfqs">
+                                <a href="#" class="btn purchase-dashboard-card p-1 p-lg-2 text-truncate text-wrap" t-attf-class="o_purchase_dashboard_card_{{ multiuser ? 'top' : 'sole' }}                                        {{ purchaseData['global']['draft']['all'] == 0                                           ? 'bg-secondary-subtle text-secondary-emphasis'                                           : 'bg-info-subtle text-info-emphasis' }}">
+                                    <div class="fs-2">
+                                        <span t-out="purchaseData['global']['draft']['all']"/>
+                                        <span class="ps-4" t-if="purchaseData['global']['draft']['priority']">
+                                            <span class="o_priority_star fa fa-star "/> <span t-out="purchaseData['global']['draft']['priority']"/>
+                                        </span>
+                                    </div>New
+                                </a>
+                            </div>
+                            <div class="g-col-12 p-0" t-on-click="setSearchContext" title="All Sent RFQs" filter_name="waiting_rfqs">
+                                <a href="#" class="btn purchase-dashboard-card p-1 p-lg-2 bg-secondary-subtle text-secondary-emphasis text-truncate text-wrap" t-attf-class="o_purchase_dashboard_card_{{ multiuser ? 'top' : 'sole' }}">
+                                    <div class="fs-2">
+                                        <span t-out="purchaseData['global']['sent']['all']"/>
+                                        <span class="ps-4" t-if="purchaseData['global']['sent']['priority']">
+                                            <span class="o_priority_star fa fa-star "/> <span t-out="purchaseData['global']['sent']['priority']"/>
+                                        </span>
+                                    </div>RFQ Sent
+                                </a>
+                            </div>
+                            <div class="g-col-12 p-0" t-on-click="setSearchContext" title="All Late RFQs" filter_name="late">
+                                <a href="#" class="btn purchase-dashboard-card p-1 p-lg-2 text-truncate text-wrap" t-attf-class="o_purchase_dashboard_card_{{ multiuser ? 'top' : 'sole' }}                                        {{ purchaseData['global']['late']['all'] == 0                                           ? 'bg-secondary-subtle text-secondary-emphasis'                                           : 'bg-warning-subtle text-warning-emphasis' }}">
+                                    <div class="fs-2">
+                                        <span t-out="purchaseData['global']['late']['all']"/>
+                                        <span class="ps-4" t-if="purchaseData['global']['late']['priority']">
+                                            <span class="o_priority_star fa fa-star "/> <span t-out="purchaseData['global']['late']['priority']"/>
+                                        </span>
+                                    </div>Late RFQ
+                                </a>
+                            </div>
+                            <div class="g-col-1"/>
+                            <div class="g-col-12 p-0" t-on-click="setSearchContext" title="All Not Acknowledged POs" filter_name="not_acknowledged">
+                                <a href="#" class="btn purchase-dashboard-card p-1 p-lg-2 text-truncate text-wrap" t-attf-class="o_purchase_dashboard_card_{{ multiuser ? 'top' : 'sole' }}                                        {{ purchaseData['global']['not_acknowledged']['all'] == 0                                           ? 'bg-secondary-subtle text-secondary-emphasis'                                           : 'bg-info-subtle text-info-emphasis' }}">
+                                    <div class="fs-2">
+                                        <span t-out="purchaseData['global']['not_acknowledged']['all']"/>
+                                        <span class="ps-4" t-if="purchaseData['global']['not_acknowledged']['priority']">
+                                            <span class="o_priority_star fa fa-star "/> <span t-out="purchaseData['global']['not_acknowledged']['priority']"/>
+                                        </span>
+                                    </div>Not Acknowledged
+                                </a>
+                            </div>
+                            <div class="g-col-12 p-0" t-on-click="setSearchContext" title="All Late Receipt POs" filter_name="late_receipt">
+                                <a href="#" class="btn purchase-dashboard-card p-1 p-lg-2 text-truncate text-wrap" t-attf-class="o_purchase_dashboard_card_{{ multiuser ? 'top' : 'sole' }}                                        {{ purchaseData['global']['late_receipt']['all'] == 0                                           ? 'bg-secondary-subtle text-secondary-emphasis'                                           : 'bg-danger-subtle text-danger-emphasis' }}">
+
+                                    <div class="fs-2">
+                                        <span t-out="purchaseData['global']['late_receipt']['all']"/>
+                                        <span class="ps-4" t-if="purchaseData['global']['late_receipt']['priority']">
+                                            <span class="o_priority_star fa fa-star "/> <span t-out="purchaseData['global']['late_receipt']['priority']"/>
+                                        </span>
+                                    </div>Late Receipt
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    <div t-if="multiuser" class="grid gap-1 gap-lg-4">
+                        <div class="g-col-12 g-col-lg-1 d-flex align-items-center pt-2 pb-lg-2 justify-content-lg-end text-break">
+                            My
+                        </div>
+                        <div class="g-col-12 g-col-lg-11 grid gap-1 pt-0 pt-lg-1" style="--columns: 61">
+                            <div class="g-col-12 p-0" t-on-click="setSearchContext" title="My Draft RFQs" filter_name="draft_rfqs,my_purchases">
+                                <a href="#" class="o_purchase_dashboard_card_bottom btn purchase-dashboard-card p-1 p-lg-2 text-truncate text-wrap" t-attf-class="{{ purchaseData['my']['draft']['all'] == 0 ? 'bg-secondary-subtle text-secondary-emphasis' : 'bg-info-subtle text-info-emphasis' }}">
+                                    <div>
+                                        <span t-out="purchaseData['my']['draft']['all']"/>
+                                        <span class="ps-4" t-if="purchaseData['my']['draft']['priority']">
+                                            <span class="o_priority_star fa fa-star "/> <span t-out="purchaseData['my']['draft']['priority']"/>
+                                        </span>
+                                    </div>
+                                </a>
+                            </div>
+                            <div class="g-col-12 p-0" t-on-click="setSearchContext" title="My Waiting RFQs" filter_name="waiting_rfqs,my_purchases">
+                                <a href="#" class="o_purchase_dashboard_card_bottom btn purchase-dashboard-card p-1 p-lg-2 bg-secondary-subtle text-secondary-emphasis text-truncate text-wrap">
+                                    <div>
+                                        <span t-out="purchaseData['my']['sent']['all']"/>
+                                        <span class="ps-4" t-if="purchaseData['my']['sent']['priority']">
+                                            <span class="o_priority_star fa fa-star "/> <span t-out="purchaseData['my']['sent']['priority']"/>
+                                        </span>
+                                    </div>
+                                </a>
+                            </div>
+                            <div class="g-col-12 p-0" t-on-click="setSearchContext" title="My Late RFQs" filter_name="late,my_purchases">
+                                <a href="#" class="o_purchase_dashboard_card_bottom btn purchase-dashboard-card p-1 p-lg-2 text-truncate text-wrap" t-attf-class="{{ purchaseData['my']['late']['all'] == 0 ? 'bg-secondary-subtle text-secondary-emphasis' : 'bg-warning-subtle text-warning-emphasis' }}">
+                                    <div>
+                                        <span t-out="purchaseData['my']['late']['all']"/>
+                                        <span class="ps-4" t-if="purchaseData['my']['late']['priority']">
+                                            <span class="o_priority_star fa fa-star "/> <span t-out="purchaseData['my']['late']['priority']"/>
+                                        </span>
+                                    </div>
+                                </a>
+                            </div>
+                            <div class="g-col-1"/>
+                            <div class="g-col-12 p-0" t-on-click="setSearchContext" title="My Not Acknowledged POs" filter_name="not_acknowledged,my_purchases">
+                                <a href="#" class="o_purchase_dashboard_card_bottom btn purchase-dashboard-card p-1 p-lg-2 text-truncate text-wrap" t-attf-class="{{ purchaseData['my']['not_acknowledged']['all'] == 0 ? 'bg-secondary-subtle text-secondary-emphasis' : 'bg-info-subtle text-info-emphasis' }}">
+                                    <div>
+                                        <span t-out="purchaseData['my']['not_acknowledged']['all']"/>
+                                        <span class="ps-4" t-if="purchaseData['my']['not_acknowledged']['priority']">
+                                            <span class="o_priority_star fa fa-star "/> <span t-out="purchaseData['my']['not_acknowledged']['priority']"/>
+                                        </span>
+                                    </div>
+                                </a>
+                            </div>
+                            <div class="g-col-12 p-0" t-on-click="setSearchContext" title="My Late Receipt POs" filter_name="late_receipt,my_purchases">
+                                <a href="#" class="o_purchase_dashboard_card_bottom btn purchase-dashboard-card p-1 p-lg-2 text-truncate text-wrap" t-attf-class="{{ purchaseData['my']['late_receipt']['all'] == 0 ? 'bg-secondary-subtle text-secondary-emphasis' : 'bg-danger-subtle text-danger-emphasis' }}">
+                                    <div>
+                                        <span t-out="purchaseData['my']['late_receipt']['all']"/>
+                                        <span class="ps-4" t-if="purchaseData['my']['late_receipt']['priority']">
+                                            <span class="o_priority_star fa fa-star "/> <span t-out="purchaseData['my']['late_receipt']['priority']"/>
+                                        </span>
+                                    </div>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-lg-3 flex-shrink-0">
+                    <div class="grid gap-1 gap-lg-4">
+                        <div class="d-lg-none g-col-12 d-flex align-items-center pt-2 pb-lg-2 justify-content-lg-end text-break">
+                            All
+                        </div>
+                        <div class="g-col-12 g-col-lg-12 grid gap-1">
+                            <div class="d-none d-lg-block g-col-6 p-0" id="left_grid_top"/>
+                            <div class="g-col-6 p-0" title="All Days to Order">
+                                <div class="purchase-dashboard-card o_no_hover p-1 p-lg-2 text-truncate text-wrap" t-attf-class="o_purchase_dashboard_card_{{ multiuser ? 'top' : 'sole' }}                                          {{ purchaseData['days_to_purchase'] and                                             purchaseData['global']['days_to_order'] &gt; purchaseData['days_to_purchase']                                             ? 'btn btn-warning'                                             : 'bg-100 text-center' }}">
+                                    <div class="fs-2" t-out="purchaseData['global']['days_to_order']"/>Days to Order
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div t-if="multiuser" class="grid gap-1 gap-lg-4 pt-0 pt-lg-1">
+                        <div class="d-lg-none g-col-12 d-flex align-items-center pt-2 pb-lg-2 justify-content-lg-end text-break">
+                            My
+                        </div>
+                        <div class="g-col-12 g-col-lg-12 grid gap-1">
+                            <div class="d-none d-lg-block g-col-6 p-0" id="left_grid_bottom"/>
+                            <div class="g-col-6 p-0" title="My Days to Order">
+                                <div class="o_purchase_dashboard_card_bottom purchase-dashboard-card o_no_hover p-1 p-lg-2 text-truncate text-wrap" t-attf-class="{{                                         purchaseData['days_to_purchase'] and                                         purchaseData['global']['days_to_order'] &gt; purchaseData['days_to_purchase']                                         ? 'btn btn-warning' : 'bg-100 text-center' }}">
+                                    <div t-out="purchaseData['my']['days_to_order']"/>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </t>
+`);
+registerTemplate("purchase.PurchaseKanbanView", `/purchase/static/src/views/purchase_kanbanview.xml`, `<t t-name="purchase.PurchaseKanbanView" t-inherit="account.FileUploadKanbanRenderer" t-inherit-mode="primary" xml:space="preserve">
+        <xpath expr="//div[hasclass('o_kanban_renderer')]" position="before">
+            <PurchaseDashBoard/>
+        </xpath>
+    </t>
+`);
+registerTemplate("purchase.ListRenderer", `/purchase/static/src/views/purchase_listview.xml`, `<t t-name="purchase.ListRenderer" t-inherit="account.FileUploadListRenderer" t-inherit-mode="primary" xml:space="preserve">
+        <xpath expr="//div[hasclass('o_list_renderer')]" position="before">
+            <PurchaseDashBoard list="props.list"/>
+        </xpath>
+    </t>
+
+    `);
+registerTemplate("purchase.ListView", `/purchase/static/src/views/purchase_listview.xml`, `<t t-name="purchase.ListView" t-inherit="web.ListView" t-inherit-mode="primary" xml:space="preserve">
+        <xpath expr="//SelectionBox" position="after">
+            <PurchaseFileUploader list="model.root"/>
+        </xpath>
+    </t>
+`);
 registerTemplate("mrp.BomOverviewComponent", `/mrp/static/src/components/bom_overview/mrp_bom_overview.xml`, `<div t-name="mrp.BomOverviewComponent" class="o_action o_mrp_overview" xml:space="preserve">
 
         <BomOverviewControlPanel bomQuantity="state.bomQuantity" uomName="uomName" variants="variants" data="state.bomData" showOptions="state.showOptions" showVariants="showVariants" currentWarehouse="state.currentWarehouse" warehouses="warehouses" print.bind="onClickPrint" changeWarehouse.bind="onChangeWarehouse" changeVariant.bind="onChangeVariant" changeBomQuantity.bind="onChangeBomQuantity" changeMode.bind="onChangeMode" precision="state.precision" foldable="state.foldable" allFolded="state.allFolded"/>
@@ -42552,6 +43261,116 @@ registerTemplate("sms.SmsWidget", `/sms/static/src/components/sms_widget/fields_
         </xpath>
     </t>
 `);
+registerTemplate("purchase_stock.ProductCatalogSearchPanel", `/purchase_stock/static/src/product_catalog/search/search_panel.xml`, `<t t-name="purchase_stock.ProductCatalogSearchPanel" t-inherit="account.ProductCatalogSearchPanel" t-inherit-mode="primary" xml:space="preserve">
+        <xpath expr="//t[@t-call='account.ProductCatalogSearchPanelContent']" position="attributes">
+            <attribute name="t-call">purchase_stock.ProductCatalogSearchPanelContent</attribute>
+        </xpath>
+    </t>
+    `);
+registerTemplate("purchase_stock.ProductCatalogSearchPanelContent", `/purchase_stock/static/src/product_catalog/search/search_panel.xml`, `<t t-name="purchase_stock.ProductCatalogSearchPanelContent" t-inherit="account.ProductCatalogSearchPanelContent" t-inherit-mode="primary" xml:space="preserve">
+        <xpath expr="//section[hasclass('o_search_panel_sections')]" position="attributes">
+            <attribute name="t-att-class">
+                suggest.suggestToggle.isOn ? 'mt-4' : 'mt-5'
+            </attribute>
+            <attribute name="class" separator=" " remove="mt-5"/>
+        </xpath>
+        <xpath expr="//section[hasclass('o_search_panel_sections')]" position="before">
+            <t t-if="displaySuggest">
+                <t t-call="PurchaseSuggest.SearchPanel.Header"/>
+                <t t-if="suggest.suggestToggle.isOn">
+                    <div class="o_suggest_feature">
+                        <t t-call="PurchaseSuggest.SearchPanel.DaysInput"/>
+                        <t t-call="PurchaseSuggest.SearchPanel.BasedOn"/>
+                        <t t-call="PurchaseSuggest.SearchPanel.Footer"/>
+                    </div>
+                </t>
+            </t>
+        </xpath>
+    </t>
+
+    `);
+registerTemplate("PurchaseSuggest.SearchPanel.Header", `/purchase_stock/static/src/product_catalog/search/search_panel.xml`, `<t t-name="PurchaseSuggest.SearchPanel.Header" xml:space="preserve">
+        <div name="search_panel_suggestion" class="d-flex pt-4 mt-3">
+            <header class=" text-uppercase cursor-default" t-att-title="tooltipTitle">
+                <i class="fa fa-lg fa-lightbulb-o text-primary me-2"/>
+                <b class="me-2">Suggest</b>
+            </header>
+            <div class="d-flex align-items-center ms-auto">
+                <div name="search-suggest-toggle" class="form-check form-switch mb-0">
+                    <input class="form-check-input" type="checkbox" role="switch" t-att-checked="suggest.suggestToggle.isOn? true : false" t-on-click="toggleSuggest"/>
+                </div>
+            </div>
+        </div>
+    </t>
+
+    `);
+registerTemplate("PurchaseSuggest.SearchPanel.DaysInput", `/purchase_stock/static/src/product_catalog/search/search_panel.xml`, `<t t-name="PurchaseSuggest.SearchPanel.DaysInput" xml:space="preserve">
+        <div class="d-flex align-items-center ms-2 pt-2">
+            <span class="me-2 fw-bold">Replenish for</span>
+            <input type="text" inputmode="numeric" class="o_PurchaseSuggestInput" t-att-value="suggest.numberOfDays" t-on-input="onDaysInput" t-on-mousedown="selectAllOnClick"/>
+            <span class="ms-2">day(s)</span>
+        </div>
+    </t>
+
+    `);
+registerTemplate("PurchaseSuggest.SearchPanel.BasedOn", `/purchase_stock/static/src/product_catalog/search/search_panel.xml`, `<t t-name="PurchaseSuggest.SearchPanel.BasedOn" xml:space="preserve">
+        <div class="d-inline-flex align-items-center ms-2 mt-2 fw-bold">Based on</div>
+        <div class="d-inline-flex align-items-center ms-1 me-2">
+            <div class="o_TimePeriodSelectionField">
+                <TimePeriodSelectionField t-props="timePeriodProps"/>
+            </div>
+            <span class="m-1">x</span>
+            <input type="text" inputmode="numeric" class="o_PurchaseSuggestInput" t-att-value="suggest.percentFactor" t-on-input="onPercentFactorInput" t-on-mousedown="selectAllOnClick"/>
+            <span>%</span>
+        </div>
+    </t>
+
+    `);
+registerTemplate("PurchaseSuggest.SearchPanel.Footer", `/purchase_stock/static/src/product_catalog/search/search_panel.xml`, `<t t-name="PurchaseSuggest.SearchPanel.Footer" xml:space="preserve">
+        <div class="d-flex align-items-center mt-3 ms-2">
+            <div class="text-info fw-bold">
+                <span name="suggest_total"><t t-out="estimatedSuggestPrice"/></span>
+            </div>
+            <button name="suggest_add_all" class="btn btn-sm btn-primary ms-2" t-on-click="addAllProducts">
+                Add All
+            </button>
+        </div>
+    </t>
+`);
+registerTemplateExtension("purchase.PurchaseDashboard", `/purchase_stock/static/src/purchase_dashboard/purchase_dashboard.xml`, `<t t-name="purchase_stock.PurchaseDashboard" t-inherit="purchase.PurchaseDashboard" t-inherit-mode="extension" xml:space="preserve">
+        <xpath expr="//div[@id='left_grid_top']" position="replace">
+        <div class="g-col-6 p-0" title="OTD">
+            <div class="purchase-dashboard-card o_no_hover p-1 p-lg-2 bg-100 text-center text-truncate text-wrap" t-attf-class="o_purchase_dashboard_card_{{ multiuser ? 'top' : 'sole' }}">
+                <div class="fs-2" t-out="purchaseData['global']['otd']"/>OTD
+            </div>
+        </div>
+        </xpath>
+        <xpath expr="//div[@id='left_grid_bottom']" position="replace">
+        <div t-if="multiuser" class="g-col-6 p-0" title="OTD">
+            <div class="o_purchase_dashboard_card_bottom purchase-dashboard-card o_no_hover p-1 p-lg-2 bg-100 text-center text-truncate text-wrap">
+                <div t-out="purchaseData['my']['otd']"/>
+            </div>
+        </div>
+        </xpath>
+    </t>
+`);
+registerTemplateExtension("stock.ForecastedDetails", `/purchase_stock/static/src/purchase_stock_forecasted/forecasted_details.xml`, `<t t-name="purchase_stock.ForecastedDetails" t-inherit="stock.ForecastedDetails" t-inherit-mode="extension" xml:space="preserve">
+         <xpath expr="//tr[@name='draft_picking_in']" position="after">
+            <tr t-if="currentProduct.draft_purchase_qty.in" name="draft_po_in" t-attf-class="#{currentProduct.draft_purchase_orders_matched and 'table-info'} #{multipleProducts and 'collapse show' or ''} collapseGroup_#{line.product.id}">
+                <td/>
+                <td>Requests for quotation :
+                    <t t-foreach="currentProduct.draft_purchase_orders" t-as="purchase_order" t-key="purchase_order_index">
+                        <t t-if="purchase_order_index &gt; 0"> | </t>
+                        <a t-attf-href="#" t-out="purchase_order.name" class="fw-bold" t-on-click.prevent="() =&gt; this.props.openView('purchase.order', 'form', purchase_order.id)"/>
+                    </t>
+                </td>
+                <td class="text-end text-success">
+                    <t t-out="_formatFloat(currentProduct.draft_purchase_qty.in)"/> <t t-out="line.uom_id.display_name"/>
+                </td>
+            </tr>
+        </xpath>
+    </t>
+`);
 registerTemplate("account_peppol.NonFocusableSelectMenu", `/account_peppol/static/src/components/peppol_filterable_selection/peppol_non_focusable_selection.xml`, `<t t-name="account_peppol.NonFocusableSelectMenu" t-inherit="web.SelectMenu" t-inherit-mode="primary" xml:space="preserve">
         <xpath expr="//t[@t-call='web.SelectMenu.search']" position="attributes">
             <attribute name="t-call">account_peppol.NonFocusableSelectMenu.search</attribute>
@@ -43113,6 +43932,497 @@ registerTemplate("resource_mail.Many2OneAvatarResourceField", `/resource_mail/st
         </div>
     </t>
 
+`);
+registerTemplate("sale.BadgeExtraPrice", `/sale/static/src/js/badge_extra_price/badge_extra_price.xml`, `<t t-name="sale.BadgeExtraPrice" xml:space="preserve">
+        <span class="badge rounded-pill border ps-1 text-bg-primary flex-shrink-0">
+            <span t-out="this.props.price &gt; 0 ? '+' : '-'" class="me-1"/>
+            <span t-out="getFormattedPrice()"/>
+        </span>
+    </t>
+`);
+registerTemplate("sale.SaleActionHelper", `/sale/static/src/js/sale_action_helper/sale_action_helper.xml`, `<t t-name="sale.SaleActionHelper" xml:space="preserve">
+        <div class="o_view_nocontent flex-wrap pt-5">
+            <div class="container">
+                <div class="o_nocontent_help">
+                    <div>
+                        <a class="o_sale_action_preview position-relative overflow-hidden d-inline-block rounded-4" role="button" t-on-click="this.openVideoPreview">
+                            <i class="position-absolute top-50 start-50 translate-middle w-auto h-auto z-1 fa fa-4x fa-play-circle"/>
+                            <div class="position-absolute top-0 end-0 w-100 h-100"/>
+                            <img src="/sale/static/src/img/sales_quotation_thumbnail.webp" class="img w-100"/>
+                        </a>
+                        <t t-out="props.noContentHelp"/>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </t>
+`);
+registerTemplate("sale.SaleActionHelperDialog", `/sale/static/src/js/sale_action_helper/sale_action_helper_dialog.xml`, `<t t-name="sale.SaleActionHelperDialog" xml:space="preserve">
+        <Dialog bodyClass="'shadow'" contentClass="'border-0 bg-transparent shadow-none'" footer="false" size="'xl'" technical="false" withBodyPadding="false" t-on-click="props.close">
+            <div class="ratio ratio-16x9">
+                <iframe allow="autoplay; encrypted-media; picture-in-picture; web-share" width="1140" height="641" t-att-src="this.props.url" title="Sale" frameborder="0" allowfullscreen="1">
+                    Your browser does not support iframe.
+                </iframe>
+            </div>
+        </Dialog>
+    </t>
+`);
+registerTemplate("sale.ComboConfiguratorDialog", `/sale/static/src/js/combo_configurator_dialog/combo_configurator_dialog.xml`, `<t t-name="sale.ComboConfiguratorDialog" xml:space="preserve">
+        <Dialog title="props.display_name" contentClass="'sale-combo-configurator-dialog'" bodyClass="'d-flex flex-column gap-4'">
+            <div t-if="unconfigurableCombos.length" class="mb-4">
+                <span class="d-inline-block mb-3 h4">
+                    Included
+                </span>
+                <div class="container">
+                    <div t-foreach="unconfigurableCombos" t-as="combo" t-key="combo.id" class="row mb-3">
+                        <t t-set="product" t-value="combo.combo_items[0].product"/>
+                        <div class="col-2 p-0">
+                            <img t-attf-src="/web/image/product.product/{{product.id}}/image_256" alt="Product Image" role="img" class="img-thumbnail rounded"/>
+                        </div>
+                        <div name="preselected_product_name" class="col d-flex justify-content-center text-break flex-column">
+                            <span name="preselected_product_title" t-out="product.display_name" class="h5"/>
+                            <div t-if="product.description" t-out="product.description" class="text-muted small text-truncate"/>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div t-foreach="configurableCombos" t-as="combo" t-key="combo.id">
+                <span name="sale_combo_configurator_title" t-attf-class="d-inline-block mb-3 h4 {{combo_index !== 0? 'mt-4' : ''}}" t-out="combo.name"/>
+                <div class="row row-cols-1 row-cols-md-3 g-3">
+                    <t t-foreach="combo.combo_items" t-as="comboItem" t-key="comboItem.id">
+                        <ProductCard product="getSelectedOrProvidedComboItem(combo.id, comboItem).product" extraPrice="comboItem.extra_price" onClick="() =&gt; this.selectComboItem(combo.id, comboItem)" isSelected="state.selectedComboItems.get(combo.id)?.id === comboItem.id" isConfigurable="comboItem.is_configurable"/>
+                    </t>
+                </div>
+            </div>
+            <t t-set-slot="footer">
+                <div class="d-flex flex-column-reverse flex-lg-row gap-3 w-100">
+                    <div class="d-flex flex-column flex-md-row gap-2">
+                        <button name="sale_combo_configurator_confirm_button" class="btn btn-primary w-100 w-lg-auto" t-att-disabled="!areAllCombosSelected || state.isLoading" t-on-click="confirm">
+                            Add to order
+                        </button>
+                        <button name="sale_combo_configurator_cancel_button" class="btn btn-secondary w-100 w-lg-auto" t-on-click="cancel">
+                            Cancel
+                        </button>
+                    </div>
+                    <div class="d-flex gap-3 align-items-center">
+                        <div t-if="props.options?.showQuantity ?? true" class="combo_configurator_quantity ps-lg-3">
+                            <QuantityButtons quantity="state.quantity" setQuantity="quantity =&gt; this.setQuantity(quantity)" isMinusButtonDisabled="state.quantity === 1" btnClasses="'d-inline-block w-auto'"/>
+                        </div>
+                        <div t-if="props.options?.showPrice ?? true" class="w-100 w-md-auto">
+                            <span name="sale_combo_configurator_total" class="h6 mb-0" t-out="totalMessage"/>
+                            <span t-if="this.props.price_info" t-out="this.props.price_info" class="text-muted"/>
+                        </div>
+                    </div>
+                </div>
+            </t>
+        </Dialog>
+    </t>
+`);
+registerTemplate("sale.Product", `/sale/static/src/js/product/product.xml`, `<t t-name="sale.Product" xml:space="preserve">
+        <td class="o_sale_product_configurator_img py-3 px-0">
+            <img class="w-75 w-lg-100 border rounded" t-att-src="imageUrl" alt="Product Image"/>
+        </td>
+        <td class="p-0 p-md-3 product_name_description">
+            <div name="o_sale_product_configurator_name" class="mb-1 mb-lg-3 text-break text-truncate">
+                <span class="h5" t-out="this.props.display_name"/>
+                <div t-if="this.props.description_sale" t-out="this.props.description_sale" class="text-muted small text-truncate"/>
+                <div t-if="this.props.selectedComboItems" class="text-muted small">
+                    <div t-foreach="this.props.selectedComboItems" t-as="comboItem" t-key="comboItem_index" t-out="comboItem.name"/>
+                </div>
+            </div>
+            <t t-foreach="this.props.attribute_lines" t-as="ptal" t-key="ptal.id">
+                <PTAL t-if="shouldShowPtal(ptal)" t-props="{ ...ptal, show_extra_price: this.props.show_extra_price }" productTmplId="this.props.product_tmpl_id"/>
+            </t>
+            <div t-if="!this.env.isPossibleCombination(this.props)" class="alert alert-warning impossible_combination_alert mt-3">
+                <span>This option or combination of options is not available</span>
+            </div>
+            <t t-if="this.props.available_uoms" t-call="sale.uom_selector"/>
+        </td>
+        <t t-if="!this.props.optional">
+            <td class="o_sale_product_configurator_qty w-25 py-3 px-0 text-end">
+                <div t-if="env.showPrice" class="d-md-flex gap-2 align-items-baseline justify-content-end">
+                    <t t-call="sale.product_price" name="sale_product_configurator_price"/>
+                </div>
+                <t t-set="isComboProduct" t-value="!!this.props.selectedComboItems?.length"/>
+                <t t-if="env.showQuantity &amp;&amp; !(isMainProduct &amp;&amp; isComboProduct)">
+                    <QuantityButtons quantity="this.props.quantity" setQuantity="quantity =&gt; this.env.setQuantity(this.props.product_tmpl_id, quantity)" isMinusButtonDisabled="this.props.quantity === 1 &amp;&amp; isMainProduct"/>
+                </t>
+                <span t-elif="env.showQuantity &amp;&amp; isMainProduct &amp;&amp; isComboProduct" t-out="this.props.quantity" class="h5"/>
+                <a class="d-block mt-2 text-end" role="button" t-if="!isMainProduct" t-on-click="() =&gt; this.env.removeProduct(this.props.product_tmpl_id)">
+                    Remove
+                </a>
+            </td>
+        </t>
+        <t t-else="">
+            <td name="price" class="o_sale_product_configurator_price py-3 px-0 text-end">
+                <div t-if="env.showPrice" class="d-md-flex gap-2 align-items-baseline justify-content-end">
+                    <t t-call="sale.product_price" name="sale_product_configurator_optional_price"/>
+                </div>
+                <button name="sale_product_configurator_add_button" class="btn btn-secondary" t-att-class="{'disabled': !this.env.isPossibleCombination(this.props)}" t-on-click="() =&gt; this.env.addProduct(this.props.product_tmpl_id)">
+                    <i class="oi oi-plus" role="img"/>
+                    <span name="add_button" class="ms-2 d-none d-md-inline">Add</span>
+                </button>
+            </td>
+        </t>
+    </t>
+
+    `);
+registerTemplate("sale.product_price", `/sale/static/src/js/product/product.xml`, `<t t-name="sale.product_price" xml:space="preserve">
+        <span name="sale_product_configurator_formatted_price" class="h5 text-nowrap fw-bold text-end h6 mb-2 d-block" t-out="getFormattedPrice()"/>
+        <div t-if="this.props.price_info" t-out="this.props.price_info" class="text-muted"/>
+    </t>
+
+    `);
+registerTemplate("sale.uom_selector", `/sale/static/src/js/product/product.xml`, `<t t-name="sale.uom_selector" xml:space="preserve">
+        <div class="d-flex gap-2 flex-column align-items-start justify-content-start mb-2 small">
+            <label t-out="UoMTitle" class="fw-bold me-3"/>
+            <ul class="list-unstyled d-flex flex-column flex-lg-row gap-2 flex-grow-1 mb-0">
+                <li t-foreach="this.props.available_uoms" t-as="uom" t-key="\`\${this.props.product_tmpl_id}-\${uom.id}\`" t-att-class="{'active': uom.id == props.uom.id}" class="o_sale_product_configurator_uom_choice">
+                    <label class="btn btn-outline-secondary" t-attf-for="{{this.props.product_tmpl_id}}-{{uom.id}}-input" t-out="uom.display_name"/>
+                    <input class="btn-check" type="radio" t-attf-id="{{this.props.product_tmpl_id}}-{{uom.id}}-input" t-att-value="uom.id" t-attf-name="uom-{{this.props.product_tmpl_id}}" t-att-checked="uom.id == props.uom.id" t-on-change="selectUoM"/>
+                </li>
+            </ul>
+        </div>
+    </t>
+`);
+registerTemplate("sale.ProductCard", `/sale/static/src/js/product_card/product_card.xml`, `<t t-name="sale.ProductCard" xml:space="preserve">
+        <div class="col">
+            <article tabindex="0" t-attf-class="product-card d-flex align-items-start h-100 rounded p-2 cursor-pointer {{props.isSelected ? 'selected' : ''}}" t-on-keypress="(event) =&gt; event.code === 'Space' ? props.onClick() : () =&gt; {}" t-on-click="props.onClick">
+                <img name="product_card_image" class="w-25 border rounded" t-att-src="props.product.image_src || \`/web/image/product.product/\${props.product.id}/image_256\`" alt="Product Image"/>
+                <div class="w-75 p-2">
+                    <t t-set="ptalsToShow" t-value="props.product.ptals.filter(shouldShowPtal)"/>
+                    <h6 name="product_card_title" class="mb-1" t-out="props.product.display_name"/>
+                    <div class="text-muted">
+                        <t t-if="ptalsToShow.length">
+                            <div t-foreach="ptalsToShow" t-as="ptal" t-key="ptal.id" t-out="ptal.ptalDisplayName"/>
+                        </t>
+                        <small t-elif="props.isConfigurable">Click to configure</small>
+                    </div>
+                    <BadgeExtraPrice t-if="props.extraPrice" price="props.extraPrice" currencyId="env.currency.id"/>
+                </div>
+            </article>
+        </div>
+    </t>
+`);
+registerTemplate("sale.ProductConfiguratorDialog", `/sale/static/src/js/product_configurator_dialog/product_configurator_dialog.xml`, `<t t-name="sale.ProductConfiguratorDialog" xml:space="preserve">
+        <Dialog size="props.size" title="title" contentClass="'o_sale_product_configurator_dialog'">
+            <ProductList t-if="this.state.products.length" products="this.state.products"/>
+            <ProductList t-if="this.state.optionalProducts.length" products="this.state.optionalProducts" areProductsOptional="true"/>
+            <t t-set-slot="footer">
+                <button name="sale_product_configurator_confirm_button" class="btn btn-primary order-2 order-md-1" t-on-click="onConfirm" t-att-disabled="!isPossibleConfiguration()">
+                    Confirm
+                </button>
+                <button name="sale_product_configurator_cancel_button" class="btn btn-secondary order-2 order-md-1" t-on-click="onDiscard">
+                    Cancel
+                </button>
+                <h6 t-if="env.showPrice" class="o_configurator_price_total order-1 order-md-2 d-block d-sm-inline-block w-100 w-md-auto text-end ms-md-3 mb-0" name="sale_product_configurator_list_total">
+                    <t t-out="totalMessage"/>
+                </h6>
+            </t>
+        </Dialog>
+    </t>
+`);
+registerTemplate("sale.ProductList", `/sale/static/src/js/product_list/product_list.xml`, `<t t-name="sale.ProductList" xml:space="preserve">
+        <div t-att-class="this.props.areProductsOptional ? 'o_sale_optional_products m-n3 p-3 border-top' : ''">
+            <span name="sale_product_configurator_list_title" class="d-inline-block mb-3 h4" t-if="this.props.areProductsOptional" t-out="optionalProductsTitle"/>
+            <table class="o_sale_product_configurator_table table table-sm table-borderless position-relative mb-0" t-att-class="{'o_sale_product_configurator_table_optional': this.props.areProductsOptional}">
+                <thead t-if="!this.props.areProductsOptional">
+                    <tr>
+                        <th class="px-0 border-bottom-0" colspan="2">Product</th>
+                    </tr>
+                </thead>
+                <tbody class="border-top-0">
+                    <tr t-foreach="this.props.products" t-as="product" t-key="product.product_tmpl_id">
+                        <Product t-props="product" optional="this.props.areProductsOptional"/>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </t>
+`);
+registerTemplate("sale.ProductTemplateAttributeLine", `/sale/static/src/js/product_template_attribute_line/product_template_attribute_line.xml`, `<t t-name="sale.ProductTemplateAttributeLine" xml:space="preserve">
+        <div name="ptal" t-attf-class="#{this.props.attribute_values.length === 1 &amp;&amp; hasPTAVCustom() ? 'd-md-flex' : ''}">
+
+            <div class="d-flex gap-2 flex-column align-items-start justify-content-start mb-2 small">
+                <label t-if="showValuesChoice || isSelectedPTAVCustom()" t-out="this.props.attribute.name" class="fw-bold me-3"/>
+                <t t-if="showValuesChoice" t-call="{{getPTAVTemplate()}}"/>
+            </div>
+            <input class="o_input form-control w-100 w-md-75 mb-4" type="text" t-att-placeholder="customValuePlaceholder" t-if="hasPTAVCustom &amp;&amp; isSelectedPTAVCustom()" t-att-value="this.props.customValue" t-on-change="updateCustomValue"/>
+        </div>
+    </t>
+
+    `);
+registerTemplate("sale.ptav_select", `/sale/static/src/js/product_template_attribute_line/product_template_attribute_line.xml`, `<t t-name="sale.ptav_select" xml:space="preserve">
+        <select class="form-select form-select-sm w-auto" t-on-change="updateSelectedPTAV" t-att-name="'ptal-' + this.props.id">
+            <option t-foreach="this.props.attribute_values" t-as="ptav" t-key="ptav.id" t-att-value="ptav.id" t-att-selected="this.props.selected_attribute_value_ids.includes(ptav.id)" t-out="getPTAVSelectName(ptav)" t-att-class="{ 'css_not_available': ptav.excluded }"/>
+        </select>
+    </t>
+    `);
+registerTemplate("sale.ptav_radio", `/sale/static/src/js/product_template_attribute_line/product_template_attribute_line.xml`, `<t t-name="sale.ptav_radio" xml:space="preserve">
+        <ul class="d-flex flex-column flex-lg-row flex-wrap gap-3 row-gap-0 row-gap-lg-3 align-items-lg-center list-unstyled mb-0">
+            <li t-foreach="this.props.attribute_values" t-as="ptav" t-key="ptav.id" class="mb-0">
+                <div class="form-check">
+                    <label class="form-check-label d-inline-flex align-items-center" t-att-class="{ 'css_not_available': ptav.excluded }" t-attf-for="ptav-{{ptav.id}}-input">
+                        <span class="me-1" t-out="ptav.name"/>
+                        <BadgeExtraPrice t-if="ptav.price_extra &amp;&amp; this.props.show_extra_price" price="ptav.price_extra" currencyId="this.env.currency.id"/>
+                    </label>
+                    <input type="radio" class="form-check-input" t-attf-id="ptav-{{ptav.id}}-input" t-att-value="ptav.id" t-att-checked="this.props.selected_attribute_value_ids.includes(ptav.id)" t-att-name="'ptal-' + this.props.id" t-on-change="updateSelectedPTAV"/>
+                </div>
+            </li>
+        </ul>
+    </t>
+    `);
+registerTemplate("sale.ptav_pills", `/sale/static/src/js/product_template_attribute_line/product_template_attribute_line.xml`, `<t t-name="sale.ptav_pills" xml:space="preserve">
+         <ul class="d-flex flex-wrap gap-2 list-unstyled flex-grow-1 mb-0">
+            <li t-foreach="this.props.attribute_values" t-as="ptav" t-key="ptav.id" t-att-class="{'active': this.props.selected_attribute_value_ids.includes(ptav.id)}" class="o_sale_product_configurator_ptav_pills">
+                <label class="btn btn-outline-secondary" t-att-class="{ 'css_not_available': ptav.excluded }" t-attf-for="ptav-{{ptav.id}}-input">
+                    <span t-out="ptav.name"/>
+                    <BadgeExtraPrice t-if="ptav.price_extra" price="ptav.price_extra" currencyId="this.env.currency.id"/>
+                </label>
+                <input class="btn-check" type="radio" t-attf-id="ptav-{{ptav.id}}-input" t-att-value="ptav.id" t-att-name="'ptal-' + this.props.id" t-att-checked="this.props.selected_attribute_value_ids.includes(ptav.id)" t-on-change="updateSelectedPTAV"/>
+            </li>
+        </ul>
+    </t>
+    `);
+registerTemplate("sale.ptav_color", `/sale/static/src/js/product_template_attribute_line/product_template_attribute_line.xml`, `<t t-name="sale.ptav_color" xml:space="preserve">
+        <ul class="list-inline flex-grow-1 mb-0">
+            <li t-foreach="this.props.attribute_values" t-as="ptav" t-key="ptav.id" class="list-inline-item me-2">
+                <t t-set="img_style" t-value="ptav.image ? 'background:url(/web/image/product.template.attribute.value/'+ptav.id+'/image); background-size:cover;' : ''"/>
+                <t t-set="color_style" t-value="ptav.is_custom ? '' : 'background-color:' + (ptav.html_color || ptav.name)"/>
+                <label class="position-relative d-inline-block rounded-pill text-center" t-att-title="ptav.name" t-attf-style="#{img_style or color_style}" t-att-class="{'o_sale_product_configurator_ptav_color': true,                                   'active': this.props.selected_attribute_value_ids.includes(ptav.id),                                   'custom_value': ptav.is_custom,                                   'transparent': !ptav.is_custom and !ptav.html_color and !ptav.name,                                   'css_not_available': ptav.excluded }">
+                    <input type="radio" t-attf-id="ptav-{{ptav.id}}-input" t-att-value="ptav.id" t-att-name="'ptal-' + this.props.id" t-att-checked="this.props.selected_attribute_value_ids.includes(ptav.id)" t-on-change="updateSelectedPTAV"/>
+                </label>
+            </li>
+        </ul>
+    </t>
+    `);
+registerTemplate("sale.ptav_image", `/sale/static/src/js/product_template_attribute_line/product_template_attribute_line.xml`, `<t t-name="sale.ptav_image" xml:space="preserve">
+        <ul class="list-inline flex-grow-1 mb-0">
+            <li t-foreach="this.props.attribute_values" t-as="ptav" t-key="ptav.id" class="list-inline-item me-2">
+                <label class="position-relative d-inline-block text-center o_sale_product_configurator_ptav_image rounded-3 cursor-pointer" t-att-title="ptav.name" t-attf-style="#{ptav.image ? 'background-image:url(/web/image/product.template.attribute.value/'+ptav.id+'/image); background-size:cover;' : ''}" t-att-class="{                         'active': this.props.selected_attribute_value_ids.includes(ptav.id),                         'custom_value': ptav.is_custom,                         'transparent': !ptav.is_custom and !ptav.html_color,                         'css_not_available': ptav.excluded                     }">
+                    <input type="radio" t-attf-id="ptav-{{ptav.id}}-input" t-att-value="ptav.id" t-att-name="'ptal-' + this.props.id" t-att-checked="this.props.selected_attribute_value_ids.includes(ptav.id)" t-on-change="updateSelectedPTAV" class="w-100 h-100 opacity-0 cursor-pointer"/>
+                </label>
+            </li>
+        </ul>
+    </t>
+    `);
+registerTemplate("sale.ptav_multi", `/sale/static/src/js/product_template_attribute_line/product_template_attribute_line.xml`, `<t t-name="sale.ptav_multi" xml:space="preserve">
+         <ul class="list-unstyled flex-grow-1 m-0">
+            <li t-foreach="this.props.attribute_values" t-as="ptav" t-key="ptav.id" class="mb-2">
+                <div class="form-check">
+                    <input type="checkbox" class="form-check-input" t-attf-id="ptav-{{ptav.id}}-input" t-att-value="ptav.id" t-att-name="'ptal-' + this.props.id" t-att-checked="this.props.selected_attribute_value_ids.includes(ptav.id)" t-on-change="updateSelectedPTAV"/>
+                    <label class="form-check-label" t-attf-for="ptav-{{ptav.id}}-input">
+                        <span class="me-1" t-out="ptav.name"/>
+                        <BadgeExtraPrice t-if="ptav.price_extra" price="ptav.price_extra" currencyId="this.env.currency.id"/>
+                    </label>
+                </div>
+            </li>
+        </ul>
+    </t>
+`);
+registerTemplate("sale.QuantityButtons", `/sale/static/src/js/quantity_buttons/quantity_buttons.xml`, `<t t-name="sale.QuantityButtons" xml:space="preserve">
+        <div name="quantity_buttons_wrapper" class="input-group justify-content-end ">
+            <button name="sale_quantity_button_minus" t-attf-class="px-2 px-md-3 btn btn-secondary {{ props.btnClasses or 'd-md-inline-block' }}" aria-label="Remove one" t-att-disabled="props.isMinusButtonDisabled" t-on-click="decreaseQuantity">
+                <i class="oi oi-minus"/>
+            </button>
+            <input class="form-control quantity text-center" name="sale_quantity" type="number" t-att-value="props.quantity" t-on-change="setQuantity"/>
+            <button t-attf-class="px-2 px-md-3 btn btn-secondary {{ props.btnClasses or 'd-md-inline-block' }}" name="sale_quantity_button_plus" aria-label="Add one" t-att-disabled="props.isPlusButtonDisabled" t-on-click="increaseQuantity">
+                <i class="oi oi-plus"/>
+            </button>
+        </div>
+    </t>
+`);
+registerTemplate("sale.ListRenderer.RecordRow", `/sale/static/src/js/sale_order_line_field/sale_order_line_field.xml`, `<t t-name="sale.ListRenderer.RecordRow" t-inherit="account.SectionAndNoteListRenderer.RecordRow" t-inherit-mode="primary" xml:space="preserve">
+        <t t-set="isInvisible" position="attributes">
+            <attribute name="t-value" separator=" or " add="isCombo(record) and !this.comboColumns.includes(column.name)"/>
+        </t>
+
+        <xpath expr="//td[hasclass('o_list_record_remove')]" position="attributes">
+            <attribute name="t-if" separator=" and " add="!isCombo(record)"/>
+        </xpath>
+
+        <xpath expr="//td[hasclass('o_list_section_options')]" position="before">
+            <td t-elif="isCombo(record)" class="o_list_section_options w-print-0 p-print-0 text-center">
+                <Dropdown position="'bottom-end'" t-if="!props.readonly">
+                    <button class="btn d-table-cell border-0 py-0 px-1 cursor-pointer">
+                        <i class="fa fa-ellipsis-v"/>
+                    </button>
+                    <t t-set-slot="content">
+                        <DropdownItem t-if="this.getPreviousRecords(record)" onSelected="() =&gt; this.moveCombo(record, 'up')">
+                            <i class="me-1 fa fa-fw fa-arrow-up"/>
+                            <span>Move Up</span>
+                        </DropdownItem>
+                        <DropdownItem t-if="this.getNextRecords(record)" onSelected="() =&gt; this.moveCombo(record, 'down')">
+                            <i class="me-1 fa fa-fw fa-arrow-down"/>
+                            <span>Move Down</span>
+                        </DropdownItem>
+                        <t t-if="hasDeleteButton">
+                            <DropdownItem onSelected="() =&gt; this.onDeleteRecord(record)" class="'text-danger'">
+                                <i class="me-1 fa fa-fw fa-trash"/>
+                                <span>Delete</span>
+                            </DropdownItem>
+                        </t>
+                    </t>
+                </Dropdown>
+            </td>
+        </xpath>
+    </t>
+`);
+registerTemplate("upload_rfq_cog_menu.QuotationRequestUploader", `/sale/static/src/js/upload_rfq_cog_menu/upload_rfq_cog_menu.xml`, `<t t-name="upload_rfq_cog_menu.QuotationRequestUploader" xml:space="preserve">
+        <FileUploader multiUpload="true" onUploaded.bind="onFileUploaded" onUploadComplete.bind="onUploadComplete">
+            <t t-set-slot="toggler">
+                <span class="mx-3 cursor-pointer">Upload Request For Quotation</span>
+            </t>
+        </FileUploader>
+    </t>
+`);
+registerTemplate("sale.SaleProductField", `/sale/static/src/xml/sale_product_field.xml`, `<t t-name="sale.SaleProductField" t-inherit="account.ProductLabelSectionAndNoteField" t-inherit-mode="primary" xml:space="preserve">
+        <xpath expr="//Many2One" position="after">
+
+            <button t-if="!props.readonly and hasConfigurationButton" type="button" class="btn btn-secondary fa fa-pencil px-2" tabindex="-1" draggable="false" t-att-aria-label="configurationButtonHelp" t-att-data-tooltip="configurationButtonHelp" t-on-click="onEditConfiguration"/>
+        </xpath>
+    </t>
+
+`);
+registerTemplate("sale.SaleProgressBarField", `/sale/static/src/xml/sales_team_progress_bar_template.xml`, `<t t-name="sale.SaleProgressBarField" xml:space="preserve">
+        <t t-if="state.isInvoicingTargetDefined">
+            <t t-call="web.ProgressBarField"/>
+        </t>
+        <t t-else="">
+
+            <a t-on-click.prevent="defineInvoicingTarget" href="#" class="sale_progressbar_form_link">
+                Click to define an invoicing target
+            </a>
+        </t>
+    </t>
+
+`);
+registerTemplate("sale.SaleKanbanRenderer", `/sale/static/src/views/sale_onboarding_kanban/sale_onboarding_kanban_renderer.xml`, `<t t-name="sale.SaleKanbanRenderer" t-inherit="account.FileUploadKanbanRenderer" t-inherit-mode="primary" xml:space="preserve">
+        <t t-if="showNoContentHelper" position="replace">
+            <t t-if="showNoContentHelper">
+                <SaleActionHelper noContentHelp="props.noContentHelp"/>
+            </t>
+        </t>
+    </t>
+`);
+registerTemplate("sale.SaleListRenderer", `/sale/static/src/views/sale_onboarding_list/sale_onboarding_list_renderer.xml`, `<t t-name="sale.SaleListRenderer" t-inherit="account.FileUploadListRenderer" t-inherit-mode="primary" xml:space="preserve">
+        <ActionHelper position="replace">
+            <t t-if="showNoContentHelper">
+                <SaleActionHelper noContentHelp="props.noContentHelp"/>
+            </t>
+        </ActionHelper>
+    </t>
+`);
+registerTemplateExtension("stock.ForecastedDetails", `/sale_stock/static/src/sale_stock_forecasted/forecasted_details.xml`, `<t t-name="sale_stock.ForecastedDetails" t-inherit="stock.ForecastedDetails" t-inherit-mode="extension" xml:space="preserve">
+        <xpath expr="//tr[@name='draft_picking_out']" position="after">
+            <tr t-if="currentProduct.draft_sale_qty.out" name="draft_so_out" t-attf-class="#{currentProduct.draft_sale_orders_matched and 'table-info'} #{multipleProducts and 'collapse show' or ''} collapseGroup_#{line.product.id}">
+                <td/>
+                <td>
+                <t t-set="draft_so_out_count" t-value="currentProduct.draft_sale_orders.length"/>
+                <a t-if="draft_so_out_count == 1" href="#" t-on-click.prevent="() =&gt; this.props.openView('sale.order', 'form', currentProduct.draft_sale_orders[0].id)">
+                    1 Quotation</a>
+                <a t-else="" href="#" t-on-click.prevent="() =&gt; this.props.openView('sale.order', 'list', false, [['id', 'in', currentProduct.draft_sale_orders.map((so) =&gt; so.id)]])">
+                    <t t-out="draft_so_out_count"/> Quotations</a>
+                </td>
+                <td class="text-end">
+                    <span class="text-danger">
+                        <t t-out="_formatFloat(-currentProduct.draft_sale_qty.out)"/> <t t-out="line.uom_id.display_name"/>
+                    </span>
+                </td>
+                <td colspan="3"/>
+            </tr>
+        </xpath>
+        <xpath expr="//td[@name='usedby_cell']" position="inside">
+            <span t-if="line.move_out and line.move_out.picking_id and line.move_out.picking_id.sale_id" t-out="' - ' + line.move_out.picking_id.sale_id.partner_id.display_name"/>
+            <t t-if="line.reservation and (line.document_out._name != line.reservation._name or line.document_out.id != line.reservation.id)">
+                <span t-out="' - '"/>
+                <a t-if="line.reservation" t-out="line.reservation.name" href="#" class="fw-bold" t-on-click.prevent="() =&gt; this.props.openView(line.reservation._name, 'form', line.reservation.id)"/>
+            </t>
+            <span t-if="line.document_out and line.is_matched and line.document_out._name === 'sale.order'" t-out="' (Your SO)'"/>
+        </xpath>
+    </t>
+`);
+registerTemplate("sale_stock.QtyAtDate", `/sale_stock/static/src/widgets/qty_at_date_widget.xml`, `<t t-name="sale_stock.QtyAtDate" xml:space="preserve">
+        <a t-att-tabindex="props.record.data.display_qty_widget ? '0' : '-1'" t-on-click="showPopup" t-att-class="!props.record.data.display_qty_widget ? 'invisible' : ''" t-attf-class="fa fa-area-chart cursor-pointer {{ calcData.forecasted_issue ? 'text-danger' : '' }}"/>
+    </t>
+
+    `);
+registerTemplate("sale_stock.QtyAtDatePopover", `/sale_stock/static/src/widgets/qty_at_date_widget.xml`, `<t t-name="sale_stock.QtyAtDatePopover" xml:space="preserve">
+        <div class="p-2">
+        <h6>Availability</h6>
+        <table class="table table-borderless table-sm">
+            <tbody>
+                <t t-if="!props.record.data.is_mto and ['draft', 'sent'].includes(props.record.data.state)">
+                    <tr>
+                        <td><strong t-out="forecastedLabel"/><br/><small>On <span t-out="props.calcData.delivery_date"/></small></td>
+                        <td class="text-end">
+                            <b t-out="props.record.data.virtual_available_at_date"/> <t t-out="props.record.data.product_uom_id[1]"/>
+                            <t t-if="props.record.data.product_uom_id[1] !== props.calcData.product_uom_name">
+                                <br/><span class="fs-7 text-muted" t-out="props.calcData.product_uom_virtual_available_at_date"/> <span class="fs-7 text-muted" t-out="props.calcData.product_uom_name"/>
+                            </t>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong t-out="availableLabel"/><br/><small>All planned operations included</small></td>
+                        <td class="text-end">
+                            <b t-out="props.record.data.free_qty_today" t-att-class="!props.calcData.will_be_fulfilled ? 'text-danger': ''"/> <t t-out="props.record.data.product_uom_id[1]"/>
+                            <t t-if="props.record.data.product_uom_id[1] !== props.calcData.product_uom_name">
+                                <br/><span t-out="props.calcData.product_uom_free_qty_today" t-att-class="\`fs-7 text-muted \${!props.calcData.will_be_fulfilled ? 'text-danger': ''}\`"/> <span class="fs-7 text-muted" t-out="props.calcData.product_uom_name"/>
+                            </t>
+                        </td>
+                    </tr>
+                </t>
+                <t t-elif="props.record.data.is_mto and ['draft', 'sent'].includes(props.record.data.state)">
+                    <tr>
+                        <td><strong>Expected Delivery</strong></td>
+                        <td class="oe-right"><span t-out="props.calcData.delivery_date"/></td>
+                    </tr>
+                    <tr>
+                        <p>This product is replenished on demand.</p>
+                    </tr>
+                </t>
+                <t t-elif="props.record.data.state == 'sale'">
+                    <tr>
+                        <td>
+                            <strong>Reserved</strong><br/>
+                        </td>
+                        <td style="min-width: 50px; text-align: right;">
+                            <b t-out="props.record.data.qty_available_today"/> <t t-out="props.record.data.product_uom_id[1]"/>
+                        </td>
+                    </tr>
+                    <tr t-if="props.record.data.qty_available_today &lt; props.record.data.qty_to_deliver">
+                        <td>
+                            <span t-if="props.calcData.will_be_fulfilled and props.calcData.forecast_expected_date_str">
+                                Remaining demand available at <b t-out="props.calcData.forecast_expected_date_str" t-att-class="props.record.data.scheduled_date &lt; props.record.data.forecast_expected_date ? 'text-danger' : ''"/>
+                            </span>
+                            <span t-elif="!props.calcData.will_be_fulfilled and props.calcData.forecast_expected_date_str" class="text-danger">
+                                Not enough future availability
+                            </span>
+                            <span t-elif="!props.calcData.will_be_fulfilled" class="text-danger">
+                                No future availability
+                            </span>
+                            <span t-else="">
+                                Available in stock
+                            </span>
+                        </td>
+                    </tr>
+                </t>
+            </tbody>
+        </table>
+        <button t-if="!props.record.data.is_mto" class="text-start btn btn-link" type="button" t-on-click="openForecast">
+            <i class="oi oi-fw o_button_icon oi-arrow-right"/>
+            View Forecast
+        </button>
+        </div>
+    </t>
+`);
+registerTemplate("sale_stock.DelayAlertWidget", `/sale_stock/static/src/xml/delay_alert.xml`, `<div t-name="sale_stock.DelayAlertWidget" class="m-1" xml:space="preserve">
+        <p>The delivery
+            <t t-foreach="props.late_elements" t-as="late_element" t-key="late_element.id">
+                <a t-esc="late_element.name" href="#" t-on-click="openElement" t-att-element-id="late_element.id" t-att-element-model="late_element.model"/>,
+            </t> will be late.
+        </p>
+    </div>
 `);
 registerTemplate("snailmail.SnailmailNotificationPopover", `/snailmail/static/src/core_ui/snailmail_notification_popover.xml`, `<t t-name="snailmail.SnailmailNotificationPopover" t-inherit="mail.MessageNotificationPopover" t-inherit-mode="primary" xml:space="preserve">
         <xpath expr="//div[hasclass('o-mail-MessageNotificationPopover')]" position="replace">
